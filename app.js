@@ -82,13 +82,25 @@ function save() {
 async function saveCloudWorkspace() {
   if (!supabase || !currentUser) return;
   setSyncStatus("Saving...");
-  const { error } = await supabase.from("budget_workspaces").upsert({
+  const payload = {
     user_id: currentUser.id,
     budgets: state.budgets,
-    yearly_budgets: state.yearlyBudgets,
     expenses: state.expenses,
     updated_at: new Date().toISOString()
-  }, { onConflict: "user_id" });
+  };
+  if (state.yearlyBudgets) payload.yearly_budgets = state.yearlyBudgets;
+
+  const { error } = await supabase.from("budget_workspaces").upsert(payload, { onConflict: "user_id" });
+  if (error && /yearly_budgets|column .* does not exist|does not exist/i.test(error.message)) {
+    const { error: fallbackError } = await supabase.from("budget_workspaces").upsert({
+      user_id: currentUser.id,
+      budgets: state.budgets,
+      expenses: state.expenses,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" });
+    setSyncStatus(fallbackError ? "Sync error" : "Cloud synced");
+    return;
+  }
   setSyncStatus(error ? "Sync error" : "Cloud synced");
 }
 function setSyncStatus(message) { $("#sync-status").textContent = message; }
@@ -112,13 +124,18 @@ function updateAccountControls() {
 async function loadCloudWorkspace() {
   if (!supabase || !currentUser) return;
   setSyncStatus("Loading workspace...");
-  const { data, error } = await supabase.from("budget_workspaces").select("budgets, yearly_budgets, expenses").eq("user_id", currentUser.id).maybeSingle();
+
+  let { data, error } = await supabase.from("budget_workspaces").select("budgets, yearly_budgets, expenses").eq("user_id", currentUser.id).maybeSingle();
+  if (error && /yearly_budgets|column .* does not exist|does not exist/i.test(error.message)) {
+    ({ data, error } = await supabase.from("budget_workspaces").select("budgets, expenses").eq("user_id", currentUser.id).maybeSingle());
+  }
+
   if (error) { setSyncStatus("Sync error"); return; }
   if (data) {
     state = {
       ...state,
       budgets: { ...DEFAULT_BUDGETS, ...(data.budgets || {}) },
-      yearlyBudgets: { ...defaultYearlyBudgets(), ...(data.yearly_budgets || {}) },
+      yearlyBudgets: { ...defaultYearlyBudgets(), ...((data.yearly_budgets || data.budgets || {})) },
       expenses: Array.isArray(data.expenses) ? data.expenses : []
     };
     Object.keys(DEFAULT_BUDGETS).forEach((category) => {
@@ -156,14 +173,13 @@ async function startCloud() {
 function totals() { const spent = Object.fromEntries(CATEGORIES.map((item) => [item, 0])); state.expenses.forEach((expense) => { spent[expense.category] += Number(expense.amount); }); return spent; }
 function status(percent) { if (percent >= 100) return ["Over budget", "var(--red)"]; if (percent >= 80) return ["Close to limit", "var(--gold)"]; return ["On track", "var(--green)"]; }
 function updateSummary(spent) { const budget = Object.values(state.budgets).reduce((sum, value) => sum + Number(value), 0); const used = Object.values(spent).reduce((sum, value) => sum + value, 0); const remaining = budget - used; $("#total-budget").textContent = formatCurrency(budget, state.currency); $("#total-spent").textContent = formatCurrency(used, state.currency); $("#total-remaining").textContent = formatCurrency(remaining, state.currency); $("#header-remaining").textContent = formatCurrency(remaining, state.currency); $(".summary-item.remaining").classList.toggle("negative", remaining < 0); $("#header-remaining").style.color = remaining < 0 ? "var(--red)" : "var(--green)"; const over = CATEGORIES.filter((category) => state.budgets[category] > 0 && spent[category] >= state.budgets[category]); const alert = $("#budget-alert"); alert.hidden = !over.length; alert.textContent = over.length === 1 ? `${over[0]} is over budget this month.` : `${over.join(", ")} are over budget this month.`; }
-function renderCards(spent) { const host = $("#budget-cards"); const template = $("#budget-card-template"); host.replaceChildren(...CATEGORIES.map((category) => { const fragment = template.content.cloneNode(true); const card = fragment.querySelector("article"); const cap = Number(state.budgets[category]); const used = spent[category]; const pct = cap > 0 ? (used / cap) * 100 : 0; const [label, color] = status(pct); fragment.querySelector("h3").textContent = category; fragment.querySelector(".category-dot").style.background = COLORS[category]; const tab = fragment.querySelector(".status-tab"); tab.textContent = label; tab.style.background = color; fragment.querySelector(".budget-figures strong").textContent = formatCurrency(used, state.currency); fragment.querySelector(".budget-cap").textContent = formatCurrency(cap, state.currency); const progress = fragment.querySelector(".progress-bar"); progress.style.width = `${Math.min(pct, 100)}%`; progress.style.background = color; fragment.querySelector(".usage").textContent = `${pct.toFixed(0)}% used`; fragment.querySelector(".edit-budget").addEventListener("click", () => editBudget(category, "monthly")); fragment.querySelector(".edit-budget-yearly").addEventListener("click", () => editBudget(category, "yearly")); return card; })); }
-function editBudget(category, type = "monthly") {
-  const currentValue = type === "yearly" ? Number(state.yearlyBudgets?.[category] ?? (state.budgets[category] || 0) * 12) : Number(state.budgets[category] || 0);
-  const label = type === "yearly" ? `annual budget for ${category}` : `monthly budget for ${category}`;
-  const answer = prompt(`Set ${label}:`, currentValue);
-  if (answer === null) return;
-  const value = Number(answer);
-  if (!Number.isFinite(value) || value < 0) { alert("Enter a valid budget amount."); return; }
+function setBudgetValue(category, type, rawValue) {
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value < 0) {
+    alert("Enter a valid budget amount.");
+    render();
+    return;
+  }
 
   if (type === "monthly") {
     state.budgets[category] = value;
@@ -172,7 +188,17 @@ function editBudget(category, type = "monthly") {
     state.yearlyBudgets[category] = value;
     state.budgets[category] = Number(value) / 12;
   }
-  save(); render();
+
+  save();
+  render();
+}
+function renderCards(spent) { const host = $("#budget-cards"); const template = $("#budget-card-template"); host.replaceChildren(...CATEGORIES.map((category) => { const fragment = template.content.cloneNode(true); const card = fragment.querySelector("article"); const cap = Number(state.budgets[category]); const used = spent[category]; const pct = cap > 0 ? (used / cap) * 100 : 0; const [label, color] = status(pct); fragment.querySelector("h3").textContent = category; fragment.querySelector(".category-dot").style.background = COLORS[category]; const tab = fragment.querySelector(".status-tab"); tab.textContent = label; tab.style.background = color; fragment.querySelector(".budget-figures strong").textContent = formatCurrency(used, state.currency); fragment.querySelector(".budget-cap").textContent = formatCurrency(cap, state.currency); const monthlyInput = fragment.querySelector('[data-budget-field="monthly"]'); const yearlyInput = fragment.querySelector('[data-budget-field="yearly"]'); monthlyInput.value = Number(state.budgets[category] || 0); yearlyInput.value = Number(state.yearlyBudgets?.[category] ?? Number(state.budgets[category] || 0) * 12); monthlyInput.addEventListener("change", (event) => setBudgetValue(category, "monthly", event.target.value)); yearlyInput.addEventListener("change", (event) => setBudgetValue(category, "yearly", event.target.value)); const progress = fragment.querySelector(".progress-bar"); progress.style.width = `${Math.min(pct, 100)}%`; progress.style.background = color; fragment.querySelector(".usage").textContent = `${pct.toFixed(0)}% used`; return card; })); }
+function editBudget(category, type = "monthly") {
+  const currentValue = type === "yearly" ? Number(state.yearlyBudgets?.[category] ?? (state.budgets[category] || 0) * 12) : Number(state.budgets[category] || 0);
+  const label = type === "yearly" ? `annual budget for ${category}` : `monthly budget for ${category}`;
+  const answer = prompt(`Set ${label}:`, currentValue);
+  if (answer === null) return;
+  setBudgetValue(category, type, answer);
 }
 function renderDonut(spent) { const entries = CATEGORIES.filter((category) => spent[category] > 0); const total = entries.reduce((sum, category) => sum + spent[category], 0); const donut = $("#donut-chart"); const legend = $("#chart-legend"); if (!total) { donut.style.background = "#e7e1d5"; legend.innerHTML = "<li>No expenses yet.</li>"; return; } let cursor = 0; const parts = entries.map((category) => { const start = cursor; cursor += (spent[category] / total) * 100; return `${COLORS[category]} ${start}% ${cursor}%`; }); donut.style.background = `conic-gradient(${parts.join(",")})`; legend.replaceChildren(...entries.map((category) => { const item = document.createElement("li"); item.innerHTML = `<b style="background:${COLORS[category]}"></b>${category} <strong>${formatCurrency(spent[category], state.currency)}</strong>`; return item; })); }
 function renderBars(spent) { const maximum = Math.max(...CATEGORIES.flatMap((category) => [state.budgets[category], spent[category]]), 1); $("#bar-chart").replaceChildren(...CATEGORIES.map((category) => { const group = document.createElement("div"); group.className = "bar-group"; const budget = document.createElement("div"); budget.className = "bar budget"; budget.style.height = `${(state.budgets[category] / maximum) * 100}%`; budget.title = `${category} budget: ${formatCurrency(state.budgets[category], state.currency)}`; const used = document.createElement("div"); used.className = "bar spent"; used.style.height = `${(spent[category] / maximum) * 100}%`; used.title = `${category} spent: ${formatCurrency(spent[category], state.currency)}`; group.append(budget, used); const label = document.createElement("span"); label.className = "bar-label"; label.textContent = category; group.append(label); return group; })); }
