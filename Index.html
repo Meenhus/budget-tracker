@@ -79,6 +79,24 @@
         </div>
       </section>
 
+      <section class="panel daily-panel">
+        <div class="panel-title"><p class="eyebrow">Daily tracking</p><h2>Daily & weekly spend</h2></div>
+        <div class="daily-kpis">
+          <article class="daily-stat"><span>Month total</span><strong id="month-total">$0</strong></article>
+          <article class="daily-stat"><span>This week</span><strong id="week-total">$0</strong></article>
+        </div>
+        <div class="daily-breakdown">
+          <div class="daily-list-wrap">
+            <h3>Daily totals</h3>
+            <div id="daily-expense-list" class="daily-expense-list" aria-live="polite"></div>
+          </div>
+          <div class="weekly-summary-wrap">
+            <h3>Weekly totals</h3>
+            <div id="weekly-summary" class="weekly-summary-grid"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="ledger-grid">
         <form id="expense-form" class="panel expense-form">
           <div class="panel-title"><p class="eyebrow">New entry</p><h2>Log an expense</h2></div>

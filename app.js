@@ -213,6 +213,44 @@ function getYearlyMonthlyData() {
   });
   return buckets;
 }
+function getCurrentMonthDailyData() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const buckets = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
+    return {
+      day,
+      dateKey: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      label: `${day}`,
+      value: 0
+    };
+  });
+  state.expenses.forEach((expense) => {
+    const date = new Date(`${expense.date}T00:00:00`);
+    if (date.getFullYear() === year && date.getMonth() === month) {
+      const dayBucket = buckets[date.getDate() - 1];
+      if (dayBucket) dayBucket.value += Number(expense.amount || 0);
+    }
+  });
+  return buckets;
+}
+function getCurrentMonthWeeklyData() {
+  const dailyData = getCurrentMonthDailyData();
+  const weeks = [
+    { label: "Week 1", value: 0 },
+    { label: "Week 2", value: 0 },
+    { label: "Week 3", value: 0 },
+    { label: "Week 4", value: 0 },
+    { label: "Week 5", value: 0 }
+  ];
+  dailyData.forEach((day) => {
+    const weekIndex = Math.min(Math.floor((day.day - 1) / 7), weeks.length - 1);
+    weeks[weekIndex].value += day.value;
+  });
+  return weeks.filter((week) => week.value > 0 || week.label === `Week ${Math.ceil(new Date().getDate() / 7)}`);
+}
 function renderYearlyOverview() {
   const currentYear = new Date().getFullYear();
   const monthlyData = getYearlyMonthlyData();
@@ -241,6 +279,43 @@ function renderYearlyOverview() {
     return item;
   }));
 }
+function renderDailyOverview() {
+  const dailyData = getCurrentMonthDailyData();
+  const monthTotal = dailyData.reduce((sum, day) => sum + day.value, 0);
+  const thisWeek = dailyData.filter((day) => {
+    const today = new Date();
+    const currentDate = new Date(today.getFullYear(), today.getMonth(), day.day);
+    const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return currentDate >= weekStart && currentDate <= weekEnd;
+  }).reduce((sum, day) => sum + day.value, 0);
+
+  $("#month-total").textContent = formatCurrency(monthTotal, state.currency);
+  $("#week-total").textContent = formatCurrency(thisWeek, state.currency);
+
+  const list = $("#daily-expense-list");
+  const activeDays = dailyData.filter((day) => day.value > 0);
+  if (!activeDays.length) {
+    list.innerHTML = '<div class="daily-day"><div class="day-label"><span>No data</span></div><strong>$0</strong></div>';
+  } else {
+    list.replaceChildren(...activeDays.map((day) => {
+      const item = document.createElement("div");
+      item.className = "daily-day";
+      item.innerHTML = `<div class="day-label"><span>${day.label}</span><span>${new Date(`${day.dateKey}T00:00:00`).toLocaleString(undefined, { month: "short" })}</span></div><strong>${formatCurrency(day.value, state.currency)}</strong>`;
+      return item;
+    }));
+  }
+
+  const weeklySummary = $("#weekly-summary");
+  const weekData = getCurrentMonthWeeklyData();
+  weeklySummary.replaceChildren(...weekData.map((week) => {
+    const card = document.createElement("div");
+    card.className = "weekly-card";
+    card.innerHTML = `<span>${week.label}</span><strong>${formatCurrency(week.value, state.currency)}</strong>`;
+    return card;
+  }));
+}
 function escapeHtml(value) { const node = document.createElement("div"); node.textContent = value; return node.innerHTML; }
 function render() {
   const spent = totals();
@@ -252,6 +327,7 @@ function render() {
   renderDonut(spent);
   renderBars(spent);
   renderYearlyOverview();
+  renderDailyOverview();
   renderTransactions();
 }
 function populateCategories() { $("#expense-category").replaceChildren(...CATEGORIES.map((category) => new Option(category, category))); const filter = $("#transaction-filter"); CATEGORIES.forEach((category) => filter.add(new Option(category, category))); $("#expense-date").value = dateInput(); $("#currency-select").value = state.currency; const amountPrefix = document.querySelector(".currency-input span"); if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$"; }
