@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#284c3d" />
+    <title>The Ledger | Business Budget Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <p class="eyebrow">The Ledger</p>
+        <h1>Business Budget Tracker</h1>
+      </div>
+      <div class="header-balance">
+        <span>Monthly budget remaining</span>
+        <strong id="header-remaining">$0</strong>
+      </div>
+      <div class="account-actions">
+        <span id="sync-status" class="sync-status">Local workspace</span>
+        <button id="account-button" class="account-button" type="button">Sign in</button>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section id="budget-alert" class="alert" hidden></section>
+
+      <section class="summary-grid" aria-label="Budget summary">
+        <article class="summary-item"><span>Total budget</span><strong id="total-budget">$0</strong></article>
+        <article class="summary-item spent"><span>Total spent</span><strong id="total-spent">$0</strong></article>
+        <article class="summary-item remaining"><span>Remaining</span><strong id="total-remaining">$0</strong></article>
+      </section>
+
+      <section class="plan-banner" aria-label="Subscription plan">
+        <div><p class="eyebrow">Ledger Pro</p><h2>Keep every business decision visible</h2><p>Cloud backup, reports, recurring expenses, and team access are ready for your Pro workspace.</p></div>
+        <button id="upgrade-button" class="primary-button plan-button" type="button">Upgrade to Pro</button>
+      </section>
+
+      <section class="section-heading">
+        <div><p class="eyebrow">Monthly plan</p><h2>Category budgets</h2></div>
+        <button class="text-button" id="reset-data" type="button">Reset sample data</button>
+      </section>
+      <section id="budget-cards" class="budget-grid" aria-label="Category budgets"></section>
+
+      <section class="analytics-grid">
+        <article class="panel"><h2>Spending by category</h2><div id="donut-chart" class="donut-chart" role="img" aria-label="Spending distribution"></div><ul id="chart-legend" class="chart-legend"></ul></article>
+        <article class="panel"><h2>Budget vs. spent</h2><div id="bar-chart" class="bar-chart" role="img" aria-label="Budget compared with spending"></div><p class="chart-key"><span></span> Budget <i></i> Spent</p></article>
+      </section>
+
+      <section class="ledger-grid">
+        <form id="expense-form" class="panel expense-form">
+          <div class="panel-title"><p class="eyebrow">New entry</p><h2>Log an expense</h2></div>
+          <label for="expense-amount">Amount</label>
+          <div class="currency-input"><span>$</span><input id="expense-amount" name="amount" type="number" min="0.01" step="0.01" placeholder="0.00" required /></div>
+          <label for="expense-category">Category</label>
+          <select id="expense-category" name="category"></select>
+          <label for="expense-date">Date</label>
+          <input id="expense-date" name="date" type="date" required />
+          <label for="expense-note">Note <small>(optional)</small></label>
+          <input id="expense-note" name="note" type="text" maxlength="100" placeholder="What was this for?" />
+          <p id="form-error" class="form-error" role="alert"></p>
+          <button class="primary-button" type="submit"><span aria-hidden="true">+</span> Add expense</button>
+        </form>
+
+        <article class="panel transaction-panel">
+          <div class="transactions-title"><div><p class="eyebrow">Activity</p><h2>Transaction log</h2></div><label class="sr-only" for="transaction-filter">Filter transactions</label><select id="transaction-filter"><option value="All">All categories</option></select></div>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th class="amount-cell">Amount</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="transaction-list"></tbody></table></div>
+        </article>
+      </section>
+    </main>
+    <dialog id="auth-dialog" class="auth-dialog">
+      <form id="auth-form" method="dialog" class="auth-card">
+        <button id="close-auth" class="close-dialog" type="button" aria-label="Close">x</button>
+        <p class="eyebrow">Secure workspace</p><h2 id="auth-title">Sign in to The Ledger</h2>
+        <p id="auth-description">Save your budget securely and access it from any device.</p>
+        <label for="auth-email">Email address</label><input id="auth-email" type="email" autocomplete="email" required placeholder="you@business.com" />
+        <div id="new-account-fields" hidden>
+          <label for="auth-phone">Phone number</label><input id="auth-phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="e.g. +234 801 234 5678" />
+          <label for="auth-country">Country</label>
+          <select id="auth-country" autocomplete="country-name">
+            <option value="">Select your country</option>
+            <option>Australia</option><option>Brazil</option><option>Canada</option><option>France</option><option>Germany</option><option>Ghana</option><option>India</option><option>Ireland</option><option>Kenya</option><option>Nigeria</option><option>South Africa</option><option>United Arab Emirates</option><option>United Kingdom</option><option>United States</option><option>Other</option>
+          </select>
+        </div>
+        <label for="auth-password">Password</label><input id="auth-password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters" />
+        <p id="auth-error" class="form-error" role="alert"></p>
+        <button id="auth-submit" class="primary-button" type="submit">Sign in</button>
+        <button id="auth-toggle" class="text-button auth-toggle" type="button">Create an account</button>
+      </form>
+    </dialog>
+    <template id="budget-card-template">
+      <article class="budget-card"><span class="status-tab"></span><div class="card-top"><h3></h3><span class="category-dot"></span></div><p class="budget-figures"><strong></strong><span> of <span class="budget-cap"></span><button class="edit-budget" type="button" title="Edit budget" aria-label="Edit budget">Edit</button></span></p><div class="progress-track"><div class="progress-bar"></div></div><p class="usage"></p></article>
+    </template>
+    <script src="app-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

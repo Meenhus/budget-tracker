@@ -1,0 +1,28 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Node dependencies and logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated app config
+app-config.js
+
+# Netlify / deployment artifacts
+.netlify/
+
+# Editor settings
+.vscode/
+
+# OS / local noise
+.DS_Store
+Thumbs.db
+
+# Build output
+build/
+dist/
+coverage/
