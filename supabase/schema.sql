@@ -2,6 +2,7 @@
 create table if not exists public.budget_workspaces (
   user_id uuid primary key references auth.users(id) on delete cascade,
   budgets jsonb not null default '{}'::jsonb,
+  yearly_budgets jsonb not null default '{}'::jsonb,
   expenses jsonb not null default '[]'::jsonb,
   stripe_customer_id text unique,
   subscription_status text not null default 'free',
