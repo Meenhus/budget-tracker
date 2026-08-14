@@ -74,13 +74,18 @@ async function saveCloudWorkspace() {
 function setSyncStatus(message) { $("#sync-status").textContent = message; }
 function updateAccountControls() {
   const button = $("#account-button");
+  const syncUser = $("#sync-user");
   if (currentUser) {
     button.textContent = "Sign out";
     button.title = currentUser.email;
+    syncUser.textContent = currentUser.email;
+    syncUser.hidden = false;
     setSyncStatus("Cloud synced");
   } else {
     button.textContent = "Sign in";
     button.title = "Sign in to save your workspace";
+    syncUser.textContent = "";
+    syncUser.hidden = true;
     setSyncStatus(supabase ? "Sign in to sync" : "Local workspace");
   }
 }
