@@ -44,9 +44,20 @@ const DEFAULT_EXPENSES = [
   { id: 1, amount: 240, category: "Supplies", date: "2026-07-03", note: "Packaging materials" }, { id: 2, amount: 3500, category: "Payroll", date: "2026-07-05", note: "Bi-weekly payroll run" }, { id: 3, amount: 1800, category: "Rent", date: "2026-07-01", note: "Storefront rent" }, { id: 4, amount: 180, category: "Marketing", date: "2026-07-10", note: "Local paper ad" }, { id: 5, amount: 96, category: "Utilities", date: "2026-07-08", note: "Electric bill" }, { id: 6, amount: 65, category: "Other", date: "2026-07-12", note: "Bank fees" }, { id: 7, amount: 410, category: "Supplies", date: "2026-07-18", note: "Restock inventory" }, { id: 8, amount: 120, category: "Marketing", date: "2026-07-20", note: "Social ads" }
 ];
 const storageKey = "the-ledger-business-budget-v1";
-const money = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const CURRENCY_SYMBOLS = { USD: "$", NGN: "₦", EUR: "€" };
+const formatCurrency = (value, currency = state?.currency || "USD") =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
 const dateInput = () => new Date().toISOString().slice(0, 10);
-let state = JSON.parse(localStorage.getItem(storageKey) || "null") || { budgets: { ...DEFAULT_BUDGETS }, expenses: [...DEFAULT_EXPENSES] };
+let state = JSON.parse(localStorage.getItem(storageKey) || "null") || {
+  currency: "USD",
+  budgets: { ...DEFAULT_BUDGETS },
+  expenses: [...DEFAULT_EXPENSES]
+};
+if (!state.currency) state.currency = "USD";
 let supabase = null;
 let currentUser = null;
 let authMode = "signin";
@@ -95,7 +106,11 @@ async function loadCloudWorkspace() {
   const { data, error } = await supabase.from("budget_workspaces").select("budgets, expenses").eq("user_id", currentUser.id).maybeSingle();
   if (error) { setSyncStatus("Sync error"); return; }
   if (data) {
-    state = { budgets: { ...DEFAULT_BUDGETS, ...data.budgets }, expenses: Array.isArray(data.expenses) ? data.expenses : [] };
+    state = {
+      ...state,
+      budgets: { ...DEFAULT_BUDGETS, ...data.budgets },
+      expenses: Array.isArray(data.expenses) ? data.expenses : []
+    };
     localStorage.setItem(storageKey, JSON.stringify(state));
   } else {
     await saveCloudWorkspace();
@@ -125,17 +140,72 @@ async function startCloud() {
 }
 function totals() { const spent = Object.fromEntries(CATEGORIES.map((item) => [item, 0])); state.expenses.forEach((expense) => { spent[expense.category] += Number(expense.amount); }); return spent; }
 function status(percent) { if (percent >= 100) return ["Over budget", "var(--red)"]; if (percent >= 80) return ["Close to limit", "var(--gold)"]; return ["On track", "var(--green)"]; }
-function updateSummary(spent) { const budget = Object.values(state.budgets).reduce((sum, value) => sum + Number(value), 0); const used = Object.values(spent).reduce((sum, value) => sum + value, 0); const remaining = budget - used; $("#total-budget").textContent = money.format(budget); $("#total-spent").textContent = money.format(used); $("#total-remaining").textContent = money.format(remaining); $("#header-remaining").textContent = money.format(remaining); $(".summary-item.remaining").classList.toggle("negative", remaining < 0); $("#header-remaining").style.color = remaining < 0 ? "var(--red)" : "var(--green)"; const over = CATEGORIES.filter((category) => state.budgets[category] > 0 && spent[category] >= state.budgets[category]); const alert = $("#budget-alert"); alert.hidden = !over.length; alert.textContent = over.length === 1 ? `${over[0]} is over budget this month.` : `${over.join(", ")} are over budget this month.`; }
-function renderCards(spent) { const host = $("#budget-cards"); const template = $("#budget-card-template"); host.replaceChildren(...CATEGORIES.map((category) => { const fragment = template.content.cloneNode(true); const card = fragment.querySelector("article"); const cap = Number(state.budgets[category]); const used = spent[category]; const pct = cap > 0 ? (used / cap) * 100 : 0; const [label, color] = status(pct); fragment.querySelector("h3").textContent = category; fragment.querySelector(".category-dot").style.background = COLORS[category]; const tab = fragment.querySelector(".status-tab"); tab.textContent = label; tab.style.background = color; fragment.querySelector(".budget-figures strong").textContent = money.format(used); fragment.querySelector(".budget-cap").textContent = money.format(cap); const progress = fragment.querySelector(".progress-bar"); progress.style.width = `${Math.min(pct, 100)}%`; progress.style.background = color; fragment.querySelector(".usage").textContent = `${pct.toFixed(0)}% used`; fragment.querySelector(".edit-budget").addEventListener("click", () => editBudget(category)); return card; })); }
+function updateSummary(spent) { const budget = Object.values(state.budgets).reduce((sum, value) => sum + Number(value), 0); const used = Object.values(spent).reduce((sum, value) => sum + value, 0); const remaining = budget - used; $("#total-budget").textContent = formatCurrency(budget, state.currency); $("#total-spent").textContent = formatCurrency(used, state.currency); $("#total-remaining").textContent = formatCurrency(remaining, state.currency); $("#header-remaining").textContent = formatCurrency(remaining, state.currency); $(".summary-item.remaining").classList.toggle("negative", remaining < 0); $("#header-remaining").style.color = remaining < 0 ? "var(--red)" : "var(--green)"; const over = CATEGORIES.filter((category) => state.budgets[category] > 0 && spent[category] >= state.budgets[category]); const alert = $("#budget-alert"); alert.hidden = !over.length; alert.textContent = over.length === 1 ? `${over[0]} is over budget this month.` : `${over.join(", ")} are over budget this month.`; }
+function renderCards(spent) { const host = $("#budget-cards"); const template = $("#budget-card-template"); host.replaceChildren(...CATEGORIES.map((category) => { const fragment = template.content.cloneNode(true); const card = fragment.querySelector("article"); const cap = Number(state.budgets[category]); const used = spent[category]; const pct = cap > 0 ? (used / cap) * 100 : 0; const [label, color] = status(pct); fragment.querySelector("h3").textContent = category; fragment.querySelector(".category-dot").style.background = COLORS[category]; const tab = fragment.querySelector(".status-tab"); tab.textContent = label; tab.style.background = color; fragment.querySelector(".budget-figures strong").textContent = formatCurrency(used, state.currency); fragment.querySelector(".budget-cap").textContent = formatCurrency(cap, state.currency); const progress = fragment.querySelector(".progress-bar"); progress.style.width = `${Math.min(pct, 100)}%`; progress.style.background = color; fragment.querySelector(".usage").textContent = `${pct.toFixed(0)}% used`; fragment.querySelector(".edit-budget").addEventListener("click", () => editBudget(category)); return card; })); }
 function editBudget(category) { const answer = prompt(`Set monthly budget for ${category}:`, state.budgets[category]); if (answer === null) return; const value = Number(answer); if (!Number.isFinite(value) || value < 0) { alert("Enter a valid budget amount."); return; } state.budgets[category] = value; save(); render(); }
-function renderDonut(spent) { const entries = CATEGORIES.filter((category) => spent[category] > 0); const total = entries.reduce((sum, category) => sum + spent[category], 0); const donut = $("#donut-chart"); const legend = $("#chart-legend"); if (!total) { donut.style.background = "#e7e1d5"; legend.innerHTML = "<li>No expenses yet.</li>"; return; } let cursor = 0; const parts = entries.map((category) => { const start = cursor; cursor += (spent[category] / total) * 100; return `${COLORS[category]} ${start}% ${cursor}%`; }); donut.style.background = `conic-gradient(${parts.join(",")})`; legend.replaceChildren(...entries.map((category) => { const item = document.createElement("li"); item.innerHTML = `<b style="background:${COLORS[category]}"></b>${category} <strong>${money.format(spent[category])}</strong>`; return item; })); }
-function renderBars(spent) { const maximum = Math.max(...CATEGORIES.flatMap((category) => [state.budgets[category], spent[category]]), 1); $("#bar-chart").replaceChildren(...CATEGORIES.map((category) => { const group = document.createElement("div"); group.className = "bar-group"; const budget = document.createElement("div"); budget.className = "bar budget"; budget.style.height = `${(state.budgets[category] / maximum) * 100}%`; budget.title = `${category} budget: ${money.format(state.budgets[category])}`; const used = document.createElement("div"); used.className = "bar spent"; used.style.height = `${(spent[category] / maximum) * 100}%`; used.title = `${category} spent: ${money.format(spent[category])}`; group.append(budget, used); const label = document.createElement("span"); label.className = "bar-label"; label.textContent = category; group.append(label); return group; })); }
-function renderTransactions() { const filter = $("#transaction-filter").value; const expenses = state.expenses.filter((expense) => filter === "All" || expense.category === filter).sort((a, b) => b.date.localeCompare(a.date)); const body = $("#transaction-list"); if (!expenses.length) { body.innerHTML = "<tr><td class=\"empty-row\" colspan=\"5\">No expenses logged in this category yet.</td></tr>"; return; } body.replaceChildren(...expenses.map((expense) => { const row = document.createElement("tr"); row.innerHTML = `<td>${expense.date}</td><td><span class="category-cell"><i class="table-dot" style="background:${COLORS[expense.category]}"></i>${expense.category}</span></td><td>${escapeHtml(expense.note || "-")}</td><td class="amount-cell">${money.format(expense.amount)}</td><td class="amount-cell"><button class="delete-button" type="button" aria-label="Delete expense">Delete</button></td>`; row.querySelector("button").addEventListener("click", () => { state.expenses = state.expenses.filter((item) => item.id !== expense.id); save(); render(); }); return row; })); }
+function renderDonut(spent) { const entries = CATEGORIES.filter((category) => spent[category] > 0); const total = entries.reduce((sum, category) => sum + spent[category], 0); const donut = $("#donut-chart"); const legend = $("#chart-legend"); if (!total) { donut.style.background = "#e7e1d5"; legend.innerHTML = "<li>No expenses yet.</li>"; return; } let cursor = 0; const parts = entries.map((category) => { const start = cursor; cursor += (spent[category] / total) * 100; return `${COLORS[category]} ${start}% ${cursor}%`; }); donut.style.background = `conic-gradient(${parts.join(",")})`; legend.replaceChildren(...entries.map((category) => { const item = document.createElement("li"); item.innerHTML = `<b style="background:${COLORS[category]}"></b>${category} <strong>${formatCurrency(spent[category], state.currency)}</strong>`; return item; })); }
+function renderBars(spent) { const maximum = Math.max(...CATEGORIES.flatMap((category) => [state.budgets[category], spent[category]]), 1); $("#bar-chart").replaceChildren(...CATEGORIES.map((category) => { const group = document.createElement("div"); group.className = "bar-group"; const budget = document.createElement("div"); budget.className = "bar budget"; budget.style.height = `${(state.budgets[category] / maximum) * 100}%`; budget.title = `${category} budget: ${formatCurrency(state.budgets[category], state.currency)}`; const used = document.createElement("div"); used.className = "bar spent"; used.style.height = `${(spent[category] / maximum) * 100}%`; used.title = `${category} spent: ${formatCurrency(spent[category], state.currency)}`; group.append(budget, used); const label = document.createElement("span"); label.className = "bar-label"; label.textContent = category; group.append(label); return group; })); }
+function renderTransactions() { const filter = $("#transaction-filter").value; const expenses = state.expenses.filter((expense) => filter === "All" || expense.category === filter).sort((a, b) => b.date.localeCompare(a.date)); const body = $("#transaction-list"); if (!expenses.length) { body.innerHTML = "<tr><td class=\"empty-row\" colspan=\"5\">No expenses logged in this category yet.</td></tr>"; return; } body.replaceChildren(...expenses.map((expense) => { const row = document.createElement("tr"); row.innerHTML = `<td>${expense.date}</td><td><span class="category-cell"><i class="table-dot" style="background:${COLORS[expense.category]}"></i>${expense.category}</span></td><td>${escapeHtml(expense.note || "-")}</td><td class="amount-cell">${formatCurrency(expense.amount, state.currency)}</td><td class="amount-cell"><button class="delete-button" type="button" aria-label="Delete expense">Delete</button></td>`; row.querySelector("button").addEventListener("click", () => { state.expenses = state.expenses.filter((item) => item.id !== expense.id); save(); render(); }); return row; })); }
+function getYearlyMonthlyData() {
+  const year = new Date().getFullYear();
+  const buckets = Array.from({ length: 12 }, (_, monthIndex) => ({
+    month: monthIndex,
+    label: new Date(year, monthIndex, 1).toLocaleString(undefined, { month: "short" }),
+    value: 0
+  }));
+  state.expenses.forEach((expense) => {
+    const date = new Date(expense.date);
+    if (date.getFullYear() === year) {
+      buckets[date.getMonth()].value += Number(expense.amount || 0);
+    }
+  });
+  return buckets;
+}
+function renderYearlyOverview() {
+  const currentYear = new Date().getFullYear();
+  const monthlyData = getYearlyMonthlyData();
+  const annualBudget = Object.values(state.budgets).reduce((sum, value) => sum + Number(value || 0), 0) * 12;
+  const annualSpent = monthlyData.reduce((sum, entry) => sum + entry.value, 0);
+  const annualRemaining = annualBudget - annualSpent;
+  const averageMonthly = monthlyData.length ? annualSpent / 12 : 0;
+  $("#year-label").textContent = String(currentYear);
+  $("#annual-budget").textContent = formatCurrency(annualBudget, state.currency);
+  $("#annual-spent").textContent = formatCurrency(annualSpent, state.currency);
+  $("#annual-remaining").textContent = formatCurrency(annualRemaining, state.currency);
+  $("#monthly-average").textContent = formatCurrency(averageMonthly, state.currency);
+
+  const host = $("#yearly-trend");
+  const maxValue = Math.max(...monthlyData.map((entry) => entry.value), 1);
+  host.replaceChildren(...monthlyData.map((entry) => {
+    const item = document.createElement("div");
+    item.className = "yearly-month";
+    const bar = document.createElement("div");
+    bar.className = "yearly-bar";
+    bar.style.height = `${Math.max((entry.value / maxValue) * 100, 8)}%`;
+    bar.title = `${entry.label}: ${formatCurrency(entry.value, state.currency)}`;
+    const label = document.createElement("span");
+    label.textContent = entry.label;
+    item.append(bar, label);
+    return item;
+  }));
+}
 function escapeHtml(value) { const node = document.createElement("div"); node.textContent = value; return node.innerHTML; }
-function render() { const spent = totals(); updateSummary(spent); renderCards(spent); renderDonut(spent); renderBars(spent); renderTransactions(); }
-function populateCategories() { $("#expense-category").replaceChildren(...CATEGORIES.map((category) => new Option(category, category))); const filter = $("#transaction-filter"); CATEGORIES.forEach((category) => filter.add(new Option(category, category))); $("#expense-date").value = dateInput(); }
+function render() {
+  const spent = totals();
+  $("#currency-select").value = state.currency;
+  const amountPrefix = document.querySelector(".currency-input span");
+  if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$";
+  updateSummary(spent);
+  renderCards(spent);
+  renderDonut(spent);
+  renderBars(spent);
+  renderYearlyOverview();
+  renderTransactions();
+}
+function populateCategories() { $("#expense-category").replaceChildren(...CATEGORIES.map((category) => new Option(category, category))); const filter = $("#transaction-filter"); CATEGORIES.forEach((category) => filter.add(new Option(category, category))); $("#expense-date").value = dateInput(); $("#currency-select").value = state.currency; const amountPrefix = document.querySelector(".currency-input span"); if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$"; }
 $("#expense-form").addEventListener("submit", (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const amount = Number(form.get("amount")); const error = $("#form-error"); if (!Number.isFinite(amount) || amount <= 0) { error.textContent = "Enter an amount greater than zero."; return; } state.expenses.push({ id: Date.now(), amount, category: form.get("category"), date: form.get("date"), note: form.get("note").trim() }); save(); event.currentTarget.reset(); $("#expense-date").value = dateInput(); error.textContent = ""; render(); });
-$("#transaction-filter").addEventListener("change", renderTransactions); $("#reset-data").addEventListener("click", () => { if (confirm("Reset all budgets and expenses to the sample data?")) { state = { budgets: { ...DEFAULT_BUDGETS }, expenses: [...DEFAULT_EXPENSES] }; save(); render(); } });
+$("#currency-select").addEventListener("change", (event) => { state.currency = event.target.value; save(); render(); });
+$("#transaction-filter").addEventListener("change", renderTransactions); $("#reset-data").addEventListener("click", () => { if (confirm("Reset all budgets and expenses to the sample data?")) { state = { currency: state.currency || "USD", budgets: { ...DEFAULT_BUDGETS }, expenses: [...DEFAULT_EXPENSES] }; save(); render(); } });
 $("#account-button").addEventListener("click", async () => {
   if (currentUser && supabase) { await supabase.auth.signOut(); return; }
   if (!supabase) { $("#auth-error").textContent = "Add your Supabase public URL and anon key in app-config.js before enabling accounts."; }

@@ -25,6 +25,14 @@
           <span id="sync-status" class="sync-status">Local workspace</span>
           <span id="sync-user" class="sync-user" hidden></span>
         </div>
+        <label class="currency-picker" for="currency-select">
+          <span>Currency</span>
+          <select id="currency-select" aria-label="Choose currency">
+            <option value="USD">USD ($)</option>
+            <option value="NGN">NGN (₦)</option>
+            <option value="EUR">EUR (€)</option>
+          </select>
+        </label>
         <button id="account-button" class="account-button" type="button">Sign in</button>
       </div>
     </header>
@@ -52,6 +60,23 @@
       <section class="analytics-grid">
         <article class="panel"><h2>Spending by category</h2><div id="donut-chart" class="donut-chart" role="img" aria-label="Spending distribution"></div><ul id="chart-legend" class="chart-legend"></ul></article>
         <article class="panel"><h2>Budget vs. spent</h2><div id="bar-chart" class="bar-chart" role="img" aria-label="Budget compared with spending"></div><p class="chart-key"><span></span> Budget <i></i> Spent</p></article>
+      </section>
+
+      <section class="panel yearly-panel">
+        <div class="panel-title"><p class="eyebrow">Annual overview</p><h2>Yearly budget</h2></div>
+        <div class="yearly-kpis">
+          <article class="yearly-stat"><span>Annual budget</span><strong id="annual-budget">$0</strong></article>
+          <article class="yearly-stat"><span>Spent this year</span><strong id="annual-spent">$0</strong></article>
+          <article class="yearly-stat"><span>Remaining</span><strong id="annual-remaining">$0</strong></article>
+          <article class="yearly-stat"><span>Avg. monthly spend</span><strong id="monthly-average">$0</strong></article>
+        </div>
+        <div class="yearly-trend-wrap">
+          <div class="yearly-trend-header">
+            <h3>Monthly expense trend</h3>
+            <span id="year-label"></span>
+          </div>
+          <div id="yearly-trend" class="yearly-trend" role="img" aria-label="Monthly expense trend"></div>
+        </div>
       </section>
 
       <section class="ledger-grid">
