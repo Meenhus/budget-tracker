@@ -465,21 +465,58 @@ async function exportReviewPdf() {
   const host = $("#review-chart");
   if (!host) return alert('Nothing to export');
   try {
-    const canvas = await html2canvas(host, { backgroundColor: null, scale: 2 });
+    // ensure the latest render
+    await new Promise((r) => requestAnimationFrame(r));
+    const canvas = await html2canvas(host, { backgroundColor: '#ffffff', scale: 2 });
     const imgData = canvas.toDataURL('image/png');
-    const { jsPDF } = window.jspdf || window.jspdf?.jsPDF || window.jspPDF || {};
-    const pdf = jsPDF ? new jsPDF('landscape', 'pt', 'a4') : null;
-    if (!pdf) {
-      // Fallback: open image in new tab
+    const { jsPDF } = window.jspdf || window.jspPDF || window.jspdf || {};
+    if (!jsPDF) {
       const w = window.open('', '_blank');
       w.document.body.style.margin = '0';
       const img = new Image(); img.src = imgData; img.style.width = '100%'; w.document.body.appendChild(img);
       return;
     }
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    pdf.addImage(imgData, 'PNG', 0, 20, pdfWidth, pdfHeight);
+
+    const pdf = new jsPDF('portrait', 'pt', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 24; // points
+    const usableWidth = pageWidth - margin * 2;
+
+    // scale the canvas image to fit usable width
+    const imgWidth = usableWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    // If fits on one page
+    if (imgHeight <= pageHeight - margin * 2) {
+      pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+      pdf.save('budget-review.pdf');
+      return;
+    }
+
+    // Multi-page: slice canvas vertically into page-height chunks
+    const pxPerPt = canvas.height / imgHeight; // pixels per point of rendered image
+    const slicePtHeight = pageHeight - margin * 2;
+    const slicePxHeight = Math.floor(slicePtHeight * pxPerPt);
+
+    let y = 0;
+    let page = 0;
+    while (y < canvas.height) {
+      const sliceH = Math.min(slicePxHeight, canvas.height - y);
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceH;
+      const ctx = sliceCanvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      ctx.drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+      const sliceData = sliceCanvas.toDataURL('image/png');
+      const sliceScaledHeight = (sliceCanvas.height * imgWidth) / canvas.width;
+      if (page > 0) pdf.addPage();
+      pdf.addImage(sliceData, 'PNG', margin, margin, imgWidth, sliceScaledHeight);
+      y += sliceH;
+      page += 1;
+    }
     pdf.save('budget-review.pdf');
   } catch (err) {
     console.error(err);
@@ -493,14 +530,18 @@ function openPresentationView() {
   const popup = window.open('', '_blank');
   const doc = popup.document;
   doc.open();
-  doc.write(`<!doctype html><html><head><title>Presentation - Budget Review</title><link rel="stylesheet" href="/style.css"></head><body style="margin:0;padding:40px;display:flex;align-items:center;justify-content:center;background:#fff;"></body></html>`);
+  doc.write(`<!doctype html><html><head><title>Presentation - Budget Review</title><link rel="stylesheet" href="/style.css"><style>html,body{height:100%;margin:0}body{display:flex;align-items:center;justify-content:center;background:#fff}#slide{width:1200px;height:720px;box-shadow:0 20px 60px rgba(0,0,0,.12);border-radius:8px;overflow:hidden;background:#fff;padding:28px} .slide-center{display:flex;flex-direction:column;height:100%;}</style></head><body><div id="slide" tabindex="0"><div class="slide-center" id="slide-content"></div></div><script>document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') window.close(); });</script></body></html>`);
   doc.close();
+  const container = doc.getElementById('slide-content');
   const clone = host.cloneNode(true);
-  // Ensure cloned styles are readable
-  clone.style.maxWidth = '1000px';
-  clone.style.margin = '0 auto';
-  popup.document.body.appendChild(clone);
-  // Allow the popup to go fullscreen if user accepts
+  clone.style.maxWidth = '100%';
+  clone.style.margin = '0';
+  clone.querySelectorAll('.review-actions, .primary-button, .text-button').forEach(el=>el && el.remove());
+  container.appendChild(clone);
+  // request fullscreen if allowed
+  popup.onload = () => {
+    try { popup.document.getElementById('slide').focus(); popup.document.getElementById('slide').requestFullscreen?.(); } catch (e) {}
+  };
 }
 function populateCategories() { $("#expense-category").replaceChildren(...CATEGORIES.map((category) => new Option(category, category))); const filter = $("#transaction-filter"); CATEGORIES.forEach((category) => filter.add(new Option(category, category))); $("#expense-date").value = dateInput(); $("#currency-select").value = state.currency; const amountPrefix = document.querySelector(".currency-input span"); if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$"; }
 $("#expense-form").addEventListener("submit", (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const amount = Number(form.get("amount")); const error = $("#form-error"); if (!Number.isFinite(amount) || amount <= 0) { error.textContent = "Enter an amount greater than zero."; return; } state.expenses.push({ id: Date.now(), amount, category: form.get("category"), date: form.get("date"), note: form.get("note").trim() }); save(); event.currentTarget.reset(); $("#expense-date").value = dateInput(); error.textContent = ""; render(); });
