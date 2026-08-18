@@ -26,6 +26,24 @@ const COLORS = {
   Utilities: "#8d7044",
   Other: "#3c6058",
 };
+function hexToRgb(hex) {
+  if (!hex) return { r: 0, g: 0, b: 0 };
+  const clean = hex.replace('#', '');
+  const bigint = parseInt(clean, 16);
+  if (clean.length === 6) {
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+  }
+  if (clean.length === 3) {
+    return { r: parseInt(clean[0] + clean[0], 16), g: parseInt(clean[1] + clean[1], 16), b: parseInt(clean[2] + clean[2], 16) };
+  }
+  return { r: 0, g: 0, b: 0 };
+}
+
+function monthColor(index) {
+  // generate distinguishable HSL colors across 12 months
+  const hue = (index * 30) % 360;
+  return `linear-gradient(180deg, hsl(${hue} 45% 55%) 0%, hsl(${(hue + 18) % 360} 40% 35%) 100%)`;
+}
 const DEFAULT_BUDGETS = {
   Supplies: 800,
   Payroll: 3500,
@@ -201,7 +219,34 @@ function editBudget(category, type = "monthly") {
   setBudgetValue(category, type, answer);
 }
 function renderDonut(spent) { const entries = CATEGORIES.filter((category) => spent[category] > 0); const total = entries.reduce((sum, category) => sum + spent[category], 0); const donut = $("#donut-chart"); const legend = $("#chart-legend"); if (!total) { donut.style.background = "#e7e1d5"; legend.innerHTML = "<li>No expenses yet.</li>"; return; } let cursor = 0; const parts = entries.map((category) => { const start = cursor; cursor += (spent[category] / total) * 100; return `${COLORS[category]} ${start}% ${cursor}%`; }); donut.style.background = `conic-gradient(${parts.join(",")})`; legend.replaceChildren(...entries.map((category) => { const item = document.createElement("li"); item.innerHTML = `<b style="background:${COLORS[category]}"></b>${category} <strong>${formatCurrency(spent[category], state.currency)}</strong>`; return item; })); }
-function renderBars(spent) { const maximum = Math.max(...CATEGORIES.flatMap((category) => [state.budgets[category], spent[category]]), 1); $("#bar-chart").replaceChildren(...CATEGORIES.map((category) => { const group = document.createElement("div"); group.className = "bar-group"; const budget = document.createElement("div"); budget.className = "bar budget"; budget.style.height = `${(state.budgets[category] / maximum) * 100}%`; budget.title = `${category} budget: ${formatCurrency(state.budgets[category], state.currency)}`; const used = document.createElement("div"); used.className = "bar spent"; used.style.height = `${(spent[category] / maximum) * 100}%`; used.title = `${category} spent: ${formatCurrency(spent[category], state.currency)}`; group.append(budget, used); const label = document.createElement("span"); label.className = "bar-label"; label.textContent = category; group.append(label); return group; })); }
+function renderBars(spent) {
+  const maximum = Math.max(...CATEGORIES.flatMap((category) => [state.budgets[category], spent[category]]), 1);
+  $("#bar-chart").replaceChildren(...CATEGORIES.map((category, idx) => {
+    const group = document.createElement("div");
+    group.className = "bar-group";
+    const budget = document.createElement("div");
+    budget.className = "bar budget";
+    budget.style.height = `${(state.budgets[category] / maximum) * 100}%`;
+    budget.title = `${category} budget: ${formatCurrency(state.budgets[category], state.currency)}`;
+
+    const used = document.createElement("div");
+    used.className = "bar spent";
+    used.style.height = `${(spent[category] / maximum) * 100}%`;
+    used.title = `${category} spent: ${formatCurrency(spent[category], state.currency)}`;
+
+    // Use category color for spent and a translucent tint for budget
+    const rgb = hexToRgb(COLORS[category]);
+    used.style.background = COLORS[category];
+    budget.style.background = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.22)`;
+
+    group.append(budget, used);
+    const label = document.createElement("span");
+    label.className = "bar-label";
+    label.textContent = category;
+    group.append(label);
+    return group;
+  }));
+}
 function editExpense(expense) {
   const amount = prompt("Edit amount:", expense.amount);
   if (amount === null) return;
@@ -299,6 +344,8 @@ function renderYearlyOverview() {
     bar.className = "yearly-bar";
     bar.style.height = `${Math.max((entry.value / maxValue) * 100, 8)}%`;
     bar.title = `${entry.label}: ${formatCurrency(entry.value, state.currency)}`;
+    // vary month colors for clearer presentation
+    bar.style.background = monthColor(entry.month);
     const label = document.createElement("span");
     label.textContent = entry.label;
     item.append(bar, label);
