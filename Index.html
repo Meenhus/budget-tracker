@@ -7,7 +7,7 @@
     <title>The Ledger | Business Budget Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -40,29 +40,41 @@
     <main class="page-shell">
       <section id="budget-alert" class="alert" hidden></section>
 
-      <section class="summary-grid" aria-label="Budget summary">
+      <!-- Dashboard: summary + key charts for executive view -->
+      <section class="section-wrapper dashboard-section">
+        <section class="summary-grid" aria-label="Budget summary">
         <article class="summary-item"><span>Total budget</span><strong id="total-budget">$0</strong></article>
         <article class="summary-item spent"><span>Total spent</span><strong id="total-spent">$0</strong></article>
         <article class="summary-item remaining"><span>Remaining</span><strong id="total-remaining">$0</strong></article>
-      </section>
+        </section>
 
-      <section class="plan-banner" aria-label="Subscription plan">
+        <section class="plan-banner" aria-label="Subscription plan">
         <div><p class="eyebrow">Ledger Pro</p><h2>Keep every business decision visible</h2><p>Cloud backup, reports, recurring expenses, and team access are ready for your Pro workspace.</p></div>
         <button id="upgrade-button" class="primary-button plan-button" type="button">Upgrade to Pro</button>
+        </section>
       </section>
 
-      <section class="section-heading">
+      <!-- Monthly budgets & Approved Annual budget -->
+      <section class="section-wrapper monthly-annual-section">
+        <section class="section-heading">
         <div><p class="eyebrow">Monthly plan</p><h2>Category budgets</h2></div>
         <button class="text-button" id="reset-data" type="button">Reset sample data</button>
-      </section>
-      <section id="budget-cards" class="budget-grid" aria-label="Category budgets"></section>
+        </section>
+        <section id="budget-cards" class="budget-grid" aria-label="Category budgets"></section>
 
-      <section class="analytics-grid">
+        <!-- Analytics (dashboard charts) live beside budget cards for quick context -->
+      </section>
+
+      <section class="section-wrapper dashboard-section">
+        <section class="analytics-grid">
         <article class="panel"><h2>Spending by category</h2><div id="donut-chart" class="donut-chart" role="img" aria-label="Spending distribution"></div><ul id="chart-legend" class="chart-legend"></ul></article>
         <article class="panel"><h2>Budget vs. spent</h2><div id="bar-chart" class="bar-chart" role="img" aria-label="Budget compared with spending"></div><p class="chart-key"><span></span> Budget <i></i> Spent</p></article>
+        </section>
       </section>
 
-      <section class="panel yearly-panel">
+      <!-- Approved annual budget (visualized) -->
+      <section class="section-wrapper monthly-annual-section">
+        <section class="panel yearly-panel">
         <div class="panel-title"><p class="eyebrow">Annual overview</p><h2>Yearly budget</h2></div>
         <div class="yearly-kpis">
           <article class="yearly-stat"><span>Annual budget</span><strong id="annual-budget">$0</strong></article>
@@ -77,9 +89,12 @@
           </div>
           <div id="yearly-trend" class="yearly-trend" role="img" aria-label="Monthly expense trend"></div>
         </div>
+        </section>
       </section>
 
-      <section class="panel daily-panel">
+      <!-- Daily & Weekly tracking section -->
+      <section class="section-wrapper daily-weekly-section">
+        <section class="panel daily-panel">
         <div class="panel-title"><p class="eyebrow">Daily tracking</p><h2>Daily & weekly spend</h2></div>
         <div class="daily-kpis">
           <article class="daily-stat"><span>Month total</span><strong id="month-total">$0</strong></article>
@@ -95,9 +110,12 @@
             <div id="weekly-summary" class="weekly-summary-grid"></div>
           </div>
         </div>
+        </section>
       </section>
 
-      <section class="ledger-grid">
+      <!-- Budget review: transaction log + review charts for presentations -->
+      <section class="section-wrapper budget-review">
+        <section class="ledger-grid">
         <form id="expense-form" class="panel expense-form">
           <div class="panel-title"><p class="eyebrow">New entry</p><h2>Log an expense</h2></div>
           <label for="expense-amount">Amount</label>
@@ -116,6 +134,17 @@
           <div class="transactions-title"><div><p class="eyebrow">Activity</p><h2>Transaction log</h2></div><label class="sr-only" for="transaction-filter">Filter transactions</label><select id="transaction-filter"><option value="All">All categories</option></select></div>
           <div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th class="amount-cell">Amount</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody id="transaction-list"></tbody></table></div>
         </article>
+
+        <!-- Review panel for executive summary and export -->
+        <section class="panel review-panel">
+          <div class="panel-title"><p class="eyebrow">Budget review</p><h2>Executive summary</h2></div>
+          <div id="review-chart" class="review-chart" role="img" aria-label="Budget review chart" style="min-height:220px;"></div>
+          <div class="review-actions">
+            <button class="review-cta" id="export-pdf">Download Executive PDF</button>
+            <button class="text-button" id="present-mode">Open Presentation View</button>
+          </div>
+        </section>
+        </section>
       </section>
     </main>
     <dialog id="auth-dialog" class="auth-dialog">

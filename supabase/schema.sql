@@ -42,6 +42,7 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+alter table public.budget_workspaces add column if not exists yearly_budgets jsonb not null default '{}'::jsonb;
 alter table public.budget_workspaces enable row level security;
 alter table public.profiles enable row level security;
 
