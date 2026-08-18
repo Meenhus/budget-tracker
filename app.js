@@ -355,6 +355,105 @@ function render() {
   renderYearlyOverview();
   renderDailyOverview();
   renderTransactions();
+  renderReviewChart();
+}
+
+function renderReviewChart() {
+  const host = $("#review-chart");
+  if (!host) return;
+  host.replaceChildren();
+  // Clone existing charts for consistency
+  const donut = $("#donut-chart")?.cloneNode(true);
+  const bars = $("#bar-chart")?.cloneNode(true);
+
+  const container = document.createElement('div');
+  container.style.display = 'flex';
+  container.style.gap = '18px';
+  container.style.alignItems = 'flex-start';
+
+  if (donut) {
+    donut.style.width = '260px';
+    donut.style.height = '260px';
+    donut.style.margin = '0';
+    container.appendChild(donut);
+  }
+
+  const right = document.createElement('div');
+  right.style.flex = '1';
+
+  // KPIs
+  const kpis = document.createElement('div');
+  kpis.style.display = 'flex';
+  kpis.style.gap = '10px';
+  kpis.style.marginBottom = '12px';
+  kpis.innerHTML = `
+    <div style="flex:1;padding:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;">
+      <div style="color:var(--muted);font-size:12px">Total budget</div>
+      <div style="font-weight:700;font-size:18px">${$('#total-budget').textContent}</div>
+    </div>
+    <div style="flex:1;padding:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;">
+      <div style="color:var(--muted);font-size:12px">Total spent</div>
+      <div style="font-weight:700;font-size:18px">${$('#total-spent').textContent}</div>
+    </div>
+    <div style="flex:1;padding:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;">
+      <div style="color:var(--muted);font-size:12px">Remaining</div>
+      <div style="font-weight:700;font-size:18px">${$('#total-remaining').textContent}</div>
+    </div>
+  `;
+
+  right.appendChild(kpis);
+
+  if (bars) {
+    bars.style.minHeight = '160px';
+    bars.style.maxHeight = '260px';
+    bars.style.margin = '0';
+    right.appendChild(bars);
+  }
+
+  container.appendChild(right);
+  host.appendChild(container);
+}
+
+async function exportReviewPdf() {
+  const host = $("#review-chart");
+  if (!host) return alert('Nothing to export');
+  try {
+    const canvas = await html2canvas(host, { backgroundColor: null, scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf || window.jspdf?.jsPDF || window.jspPDF || {};
+    const pdf = jsPDF ? new jsPDF('landscape', 'pt', 'a4') : null;
+    if (!pdf) {
+      // Fallback: open image in new tab
+      const w = window.open('', '_blank');
+      w.document.body.style.margin = '0';
+      const img = new Image(); img.src = imgData; img.style.width = '100%'; w.document.body.appendChild(img);
+      return;
+    }
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    pdf.addImage(imgData, 'PNG', 0, 20, pdfWidth, pdfHeight);
+    pdf.save('budget-review.pdf');
+  } catch (err) {
+    console.error(err);
+    alert('Export failed.');
+  }
+}
+
+function openPresentationView() {
+  const host = $("#review-chart");
+  if (!host) return;
+  const popup = window.open('', '_blank');
+  const doc = popup.document;
+  doc.open();
+  doc.write(`<!doctype html><html><head><title>Presentation - Budget Review</title><link rel="stylesheet" href="/style.css"></head><body style="margin:0;padding:40px;display:flex;align-items:center;justify-content:center;background:#fff;"></body></html>`);
+  doc.close();
+  const clone = host.cloneNode(true);
+  // Ensure cloned styles are readable
+  clone.style.maxWidth = '1000px';
+  clone.style.margin = '0 auto';
+  popup.document.body.appendChild(clone);
+  // Allow the popup to go fullscreen if user accepts
 }
 function populateCategories() { $("#expense-category").replaceChildren(...CATEGORIES.map((category) => new Option(category, category))); const filter = $("#transaction-filter"); CATEGORIES.forEach((category) => filter.add(new Option(category, category))); $("#expense-date").value = dateInput(); $("#currency-select").value = state.currency; const amountPrefix = document.querySelector(".currency-input span"); if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$"; }
 $("#expense-form").addEventListener("submit", (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const amount = Number(form.get("amount")); const error = $("#form-error"); if (!Number.isFinite(amount) || amount <= 0) { error.textContent = "Enter an amount greater than zero."; return; } state.expenses.push({ id: Date.now(), amount, category: form.get("category"), date: form.get("date"), note: form.get("note").trim() }); save(); event.currentTarget.reset(); $("#expense-date").value = dateInput(); error.textContent = ""; render(); });
@@ -422,3 +521,9 @@ $("#upgrade-button").addEventListener("click", async () => {
 });
 populateCategories(); render();
 startCloud();
+
+// Wire review actions
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'export-pdf') { e.preventDefault(); exportReviewPdf(); }
+  if (e.target && e.target.id === 'present-mode') { e.preventDefault(); openPresentationView(); }
+});
