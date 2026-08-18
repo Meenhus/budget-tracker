@@ -4,12 +4,15 @@
   "version": "1.0.0",
   "description": "Monetization-ready business budget tracker",
   "scripts": {
-    "build": "node write-config.js"
+    "build": "node write-config.js",
+    "postinstall": "node ./scripts/copy-vendor.js"
   },
   "dependencies": {
     "@supabase/server": "^1.4.1",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.0",
-    "stripe": "^18.0.0"
+    "stripe": "^18.0.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1"
   }
 }
