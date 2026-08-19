@@ -477,8 +477,72 @@ function estimateReverseBudget(targetProfit) {
   const spent = totals();
   const totalExpenses = Object.values(spent).reduce((s,v)=>s+v,0);
   const monthlyRevenue = getMonthlyRevenue();
-  const requiredReduction = Math.max(0, (monthlyRevenue - targetProfit) - monthlyRevenue) * -1; // placeholder
-  return { requiredReduction, totalExpenses };
+  const target = Number(targetProfit || 0);
+  const maxAllowedExpenses = monthlyRevenue - target;
+  const requiredReduction = Math.max(0, totalExpenses - maxAllowedExpenses);
+  const suggestions = {};
+  if (requiredReduction <= 0) {
+    return { requiredReduction: 0, totalExpenses, suggestions, note: 'No reduction required', monthlyRevenue, target };
+  }
+
+  // Distribute reduction proportionally across categories but never below zero.
+  const categories = Object.keys(spent);
+  const total = totalExpenses || 1;
+  // First pass: proportional reductions
+  categories.forEach(cat => {
+    const amt = Number(spent[cat] || 0);
+    const proportional = (amt / total) * requiredReduction;
+    const reduction = Math.min(amt, Math.round(proportional * 100) / 100);
+    suggestions[cat] = { current: amt, reduction: reduction, suggested: Math.max(0, +(amt - reduction).toFixed(2)) };
+  });
+
+  // Fix residual rounding by assigning remaining reduction to largest categories
+  const sumReductions = Object.values(suggestions).reduce((s, o) => s + (o.reduction || 0), 0);
+  let residual = +(requiredReduction - sumReductions).toFixed(2);
+  if (residual > 0) {
+    const sorted = Object.entries(suggestions).sort((a, b) => b[1].current - a[1].current);
+    for (const [cat, obj] of sorted) {
+      if (residual <= 0) break;
+      const available = Math.min(obj.current - obj.suggested, residual);
+      obj.reduction = +(obj.reduction + available).toFixed(2);
+      obj.suggested = +(obj.current - obj.reduction).toFixed(2);
+      residual = +(residual - available).toFixed(2);
+    }
+  }
+
+  return { requiredReduction: +(requiredReduction.toFixed(2)), totalExpenses, suggestions, monthlyRevenue, target };
+}
+
+function showReverseBudgetSuggestions(result) {
+  const overlayId = 'reverse-budget-overlay';
+  let overlay = document.getElementById(overlayId);
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = overlayId;
+  overlay.style = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+  const box = document.createElement('div');
+  box.style = 'background:#fff;color:#111;padding:18px;border-radius:8px;max-width:900px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,0.25);';
+  const h = document.createElement('h3'); h.textContent = 'Reverse Budget Suggestions';
+  const p = document.createElement('p');
+  p.textContent = `Monthly revenue: ${formatCurrency(result.monthlyRevenue||0,state.currency)} — Target profit: ${formatCurrency(result.target||0,state.currency)} — Required reduction: ${formatCurrency(result.requiredReduction||0,state.currency)}`;
+  box.appendChild(h); box.appendChild(p);
+  const table = document.createElement('table');
+  table.style = 'width:100%;border-collapse:collapse;margin-top:10px;';
+  const thead = document.createElement('thead'); thead.innerHTML = '<tr><th style="text-align:left;padding:6px">Category</th><th style="text-align:right;padding:6px">Current</th><th style="text-align:right;padding:6px">Reduction</th><th style="text-align:right;padding:6px">Suggested</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  Object.entries(result.suggestions || {}).forEach(([cat, obj]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="padding:6px">${escapeHtml(cat)}</td><td style="padding:6px;text-align:right">${formatCurrency(obj.current,state.currency)}</td><td style="padding:6px;text-align:right">${formatCurrency(obj.reduction,state.currency)}</td><td style="padding:6px;text-align:right">${formatCurrency(obj.suggested,state.currency)}</td>`;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  box.appendChild(table);
+  const close = document.createElement('button'); close.textContent = 'Close'; close.style='margin-top:12px;padding:8px 12px;border-radius:6px;border:0;background:#333;color:#fff;cursor:pointer;';
+  close.addEventListener('click', ()=> overlay.remove());
+  box.appendChild(close);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 
 function renderReviewChart() {
@@ -711,7 +775,12 @@ if (paymentForm) paymentForm.addEventListener('submit',(ev)=>{ev.preventDefault(
 
 // Reverse budget calculator
 const calcBtn = document.getElementById('calc-reverse');
-if (calcBtn) calcBtn.addEventListener('click', ()=>{ const t = Number(document.getElementById('target-profit').value || 0); if(!t) return alert('Enter a target profit'); const res = estimateReverseBudget(t); alert(`Estimated required reduction: ${formatCurrency(res.requiredReduction,state.currency)} (quick estimate)`); });
+if (calcBtn) calcBtn.addEventListener('click', ()=>{
+  const t = Number(document.getElementById('target-profit').value || 0);
+  if (!t && t !== 0) return alert('Enter a target profit');
+  const res = estimateReverseBudget(t);
+  showReverseBudgetSuggestions(res);
+});
 
 // Portfolio view placeholder
 const portBtn = document.getElementById('portfolio-view');
