@@ -28,6 +28,19 @@ h1,h2,h3,p { margin-top:0; } h1,h2,h3 { font-family:Poppins, "DM Serif Display",
 
 /* Larger summary cards for presentation */
 .summary-grid { gap:18px; }
+.top-navigation { display:flex; gap:8px; padding:10px 24px; justify-content:center; background:transparent; }
+.nav-button { border:0; background:transparent; padding:8px 12px; border-radius:6px; color:var(--green); font-weight:600; }
+.nav-button:hover { background:rgba(19,76,61,0.04); }
+
+.finance-grid { grid-template-columns:1fr 1fr; gap:18px; }
+.finance-kpis { display:flex; gap:12px; }
+.finance-kpis .kpi { background:var(--card); padding:12px; border-radius:8px; border:1px solid var(--line); flex:1; }
+.finance-kpis .kpi span { color:var(--muted); display:block; }
+.finance-kpis .kpi strong { font:700 18px Poppins,Arial; }
+.mini-form { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mini-form input,.mini-form select { padding:8px 10px; border:1px solid var(--line); border-radius:6px; }
+.mini-form .primary-button { padding:8px 12px; min-width:120px; }
+.finance-section .muted { color:var(--muted); font-size:13px; }
 .summary-item { padding:20px 22px; border-radius:10px; box-shadow:0 6px 18px rgba(18,40,33,0.04); }
 
 /* Budget review specific */

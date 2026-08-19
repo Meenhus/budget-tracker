@@ -75,7 +75,10 @@ let state = JSON.parse(localStorage.getItem(storageKey) || "null") || {
   currency: "USD",
   budgets: { ...DEFAULT_BUDGETS },
   yearlyBudgets: defaultYearlyBudgets(),
-  expenses: [...DEFAULT_EXPENSES]
+  expenses: [...DEFAULT_EXPENSES],
+  invoices: [],
+  payments: [],
+  portfolio: []
 };
 if (!state.currency) state.currency = "USD";
 if (!state.yearlyBudgets) state.yearlyBudgets = defaultYearlyBudgets();
@@ -403,6 +406,79 @@ function render() {
   renderDailyOverview();
   renderTransactions();
   renderReviewChart();
+  renderFinanceOverview();
+  renderInvoices();
+  renderPayments();
+}
+
+/* Finance: invoices/payments and P&L */
+function addInvoice(invoice) {
+  state.invoices.push({ id: Date.now(), ...invoice });
+  save(); render();
+}
+
+function addPayment(payment) {
+  state.payments.push({ id: Date.now(), ...payment });
+  save(); render();
+}
+
+function renderInvoices() {
+  const host = $("#invoice-list");
+  if (!host) return;
+  host.replaceChildren(...state.invoices.slice().reverse().map(inv => {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${escapeHtml(inv.client)}</td><td>${inv.date}</td><td class="amount-cell">${formatCurrency(inv.amount,state.currency)}</td><td>${escapeHtml(inv.status)}</td>`;
+    return row;
+  }));
+}
+
+function renderPayments() {
+  const host = $("#payment-list");
+  if (!host) return;
+  host.replaceChildren(...state.payments.slice().reverse().map(p => {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${p.date}</td><td>${escapeHtml(p.client)}</td><td class="amount-cell">${formatCurrency(p.amount,state.currency)}</td>`;
+    return row;
+  }));
+}
+
+function getMonthlyRevenue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  return state.payments.reduce((sum,p)=>{
+    const d = new Date(p.date);
+    if (d.getFullYear()===year && d.getMonth()===month) return sum + Number(p.amount||0);
+    return sum;
+  },0);
+}
+
+function getYtdRevenue() {
+  const year = new Date().getFullYear();
+  return state.payments.reduce((sum,p)=>{ const d=new Date(p.date); if(d.getFullYear()===year) return sum+Number(p.amount||0); return sum; },0);
+}
+
+function renderFinanceOverview() {
+  const monthlyRev = getMonthlyRevenue();
+  const ytdRev = getYtdRevenue();
+  const spent = totals();
+  const monthlyExpenses = getCurrentMonthDailyData().reduce((s,d)=>s+d.value,0);
+  const ytdExpenses = Object.values(spent).reduce((s,v)=>s+v,0);
+  const monthlyProfit = monthlyRev - monthlyExpenses;
+  const ytdProfit = ytdRev - ytdExpenses;
+  const elMonthly = $("#monthly-revenue"); if(elMonthly) elMonthly.textContent = formatCurrency(monthlyRev,state.currency);
+  const elYtd = $("#ytd-revenue"); if(elYtd) elYtd.textContent = formatCurrency(ytdRev,state.currency);
+  const elMProfit = $("#monthly-profit"); if(elMProfit) elMProfit.textContent = formatCurrency(monthlyProfit,state.currency);
+  const elYProfit = $("#ytd-profit"); if(elYProfit) elYProfit.textContent = formatCurrency(ytdProfit,state.currency);
+}
+
+// Reverse budgeting: simple estimator (distribute shortfall across categories)
+function estimateReverseBudget(targetProfit) {
+  const spent = totals();
+  const totalExpenses = Object.values(spent).reduce((s,v)=>s+v,0);
+  const monthlyRevenue = getMonthlyRevenue();
+  const requiredReduction = Math.max(0, (monthlyRevenue - targetProfit) - monthlyRevenue) * -1; // placeholder
+  return { requiredReduction, totalExpenses };
 }
 
 function renderReviewChart() {
@@ -614,4 +690,29 @@ startCloud();
 document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'export-pdf') { e.preventDefault(); exportReviewPdf(); }
   if (e.target && e.target.id === 'present-mode') { e.preventDefault(); openPresentationView(); }
+  if (e.target && e.target.classList && e.target.classList.contains('nav-button')) {
+    const t = e.target.getAttribute('data-target');
+    if (!t) return;
+    if (t === 'finance') document.getElementById('finance-section')?.scrollIntoView({behavior:'smooth'});
+    if (t === 'dashboard') window.scrollTo({top:0,behavior:'smooth'});
+    if (t === 'budgets') document.getElementById('budget-cards')?.scrollIntoView({behavior:'smooth'});
+    if (t === 'transactions') document.getElementById('transaction-list')?.scrollIntoView({behavior:'smooth'});
+    if (t === 'review') document.getElementById('review-chart')?.scrollIntoView({behavior:'smooth'});
+  }
 });
+
+// Invoice form
+const invoiceForm = document.getElementById('invoice-form');
+if (invoiceForm) invoiceForm.addEventListener('submit', (ev)=>{ev.preventDefault(); const client=document.getElementById('invoice-client').value.trim(); const amount=Number(document.getElementById('invoice-amount').value); const date=document.getElementById('invoice-date').value; const status=document.getElementById('invoice-status').value; if(!client||!amount||!date) return alert('Fill invoice fields'); addInvoice({client,amount,date,status}); invoiceForm.reset(); document.getElementById('invoice-date').value = dateInput();});
+
+// Payment form
+const paymentForm = document.getElementById('payment-form');
+if (paymentForm) paymentForm.addEventListener('submit',(ev)=>{ev.preventDefault(); const client=document.getElementById('payment-client').value.trim(); const amount=Number(document.getElementById('payment-amount').value); const date=document.getElementById('payment-date').value; if(!client||!amount||!date) return alert('Fill payment fields'); addPayment({client,amount,date}); paymentForm.reset(); document.getElementById('payment-date').value = dateInput();});
+
+// Reverse budget calculator
+const calcBtn = document.getElementById('calc-reverse');
+if (calcBtn) calcBtn.addEventListener('click', ()=>{ const t = Number(document.getElementById('target-profit').value || 0); if(!t) return alert('Enter a target profit'); const res = estimateReverseBudget(t); alert(`Estimated required reduction: ${formatCurrency(res.requiredReduction,state.currency)} (quick estimate)`); });
+
+// Portfolio view placeholder
+const portBtn = document.getElementById('portfolio-view');
+if (portBtn) portBtn.addEventListener('click', ()=>{ alert('Portfolio performance view coming soon.'); });
