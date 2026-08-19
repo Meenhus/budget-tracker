@@ -527,6 +527,94 @@ function populatePaymentInvoiceOptions() {
   sel.innerHTML = defaultOpt + unpaid.map(i => `<option value="${i.id}">${escapeHtml(i.client)} — ${i.date} — ${formatCurrency(i.amount,state.currency)}</option>`).join('');
 }
 
+// CSV helpers
+function downloadCsv(filename, csvText) {
+  const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+function objArrayToCsv(rows) {
+  if (!rows || !rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const esc = (v) => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const lines = [headers.map(esc).join(',')];
+  rows.forEach(r => lines.push(headers.map(h => esc(r[h])).join(',')));
+  return lines.join('\r\n');
+}
+
+function csvToObjects(text) {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const parts = lines[i].split(',').map(p => p.replace(/^"|"$/g, '').trim());
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = parts[idx] ?? ''; });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function exportInvoicesCsv() {
+  const rows = state.invoices.map(i => ({ id: i.id, client: i.client, amount: i.amount, date: i.date, status: i.status || 'issued', paidOn: i.paidOn || '', paidAmount: i.paidAmount || '' }));
+  const csv = objArrayToCsv(rows);
+  downloadCsv('invoices.csv', csv);
+}
+
+function importInvoicesCsvFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const rows = csvToObjects(String(e.target.result || ''));
+      rows.forEach((r, idx) => {
+        const id = r.id || (Date.now() + idx);
+        state.invoices.push({ id, client: r.client || '', amount: Number(r.amount||0), date: r.date || dateInput(), status: r.status || 'issued', paidOn: r.paidOn || null, paidAmount: r.paidAmount || null });
+      });
+      save(); render();
+    } catch (err) { alert('Failed to import invoices.'); }
+  };
+  reader.readAsText(file);
+}
+
+function exportPaymentsCsv() {
+  const rows = state.payments.map(p => ({ id: p.id, client: p.client, amount: p.amount, date: p.date, invoiceId: p.invoiceId || '' }));
+  const csv = objArrayToCsv(rows);
+  downloadCsv('payments.csv', csv);
+}
+
+function importPaymentsCsvFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const rows = csvToObjects(String(e.target.result || ''));
+      rows.forEach((r, idx) => {
+        const id = r.id || (Date.now() + idx);
+        const p = { id, client: r.client || '', amount: Number(r.amount||0), date: r.date || dateInput() };
+        if (r.invoiceId) p.invoiceId = r.invoiceId;
+        state.payments.push(p);
+      });
+      reconcilePayments(); save(); render();
+    } catch (err) { alert('Failed to import payments.'); }
+  };
+  reader.readAsText(file);
+}
+
+// wire import/export buttons
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'invoice-export') { e.preventDefault(); exportInvoicesCsv(); }
+  if (e.target && e.target.id === 'invoice-import-btn') { e.preventDefault(); document.getElementById('invoice-import-file').click(); }
+  if (e.target && e.target.id === 'payment-export') { e.preventDefault(); exportPaymentsCsv(); }
+  if (e.target && e.target.id === 'payment-import-btn') { e.preventDefault(); document.getElementById('payment-import-file').click(); }
+});
+
+const invoiceImportFile = document.getElementById('invoice-import-file');
+if (invoiceImportFile) invoiceImportFile.addEventListener('change', (ev) => { const f = ev.target.files[0]; if (f) importInvoicesCsvFile(f); ev.target.value = ''; });
+
+const paymentImportFile = document.getElementById('payment-import-file');
+if (paymentImportFile) paymentImportFile.addEventListener('change', (ev) => { const f = ev.target.files[0]; if (f) importPaymentsCsvFile(f); ev.target.value = ''; });
+
 function reconcilePayments() {
   // For payments without invoiceId, try to match by client + amount to an unpaid invoice
   state.payments.forEach(p => {
