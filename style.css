@@ -13,6 +13,13 @@ h1,h2,h3,p { margin-top:0; } h1,h2,h3 { font-family:Poppins, "DM Serif Display",
 /* New section wrappers for clear executive segmentation */
 .section-wrapper { margin:28px 0; padding:6px 0; }
 .section-wrapper.dashboard-section { background:linear-gradient(180deg, rgba(36,95,78,0.02), transparent); padding:18px; border-radius:8px; }
+
+/* Dashboards section for visibility */
+.dashboards-section { border:1px solid var(--line); padding:18px; background:linear-gradient(180deg, rgba(66,187,152,0.02), transparent); }
+.dashboards-grid { display:grid; grid-template-columns:1fr 420px; gap:18px; align-items:start; }
+.dashboard-cards { display:flex; gap:10px; flex-wrap:wrap; }
+.nav-card { padding:10px 12px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--green); font-weight:700; }
+#portfolio-chart { border:1px dashed var(--line); border-radius:8px; padding:12px; background:linear-gradient(180deg, #fff, #fbfaf7); }
 .section-wrapper.monthly-annual-section { padding:12px 0 0; }
 .section-wrapper.daily-weekly-section { padding:10px 0 0; }
 .section-wrapper.budget-review { padding:14px 0 0; }

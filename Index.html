@@ -39,6 +39,7 @@
 
     <nav class="top-navigation" aria-label="Primary">
       <button class="nav-button" data-target="dashboard">Dashboard</button>
+      <button class="nav-button" data-target="dashboards">Dashboards</button>
       <button class="nav-button" data-target="finance">Finances</button>
       <button class="nav-button" data-target="budgets">Budgets</button>
       <button class="nav-button" data-target="transactions">Transactions</button>
@@ -59,6 +60,28 @@
         <section class="plan-banner" aria-label="Subscription plan">
         <div><p class="eyebrow">Ledger Pro</p><h2>Keep every business decision visible</h2><p>Cloud backup, reports, recurring expenses, and team access are ready for your Pro workspace.</p></div>
         <button id="upgrade-button" class="primary-button plan-button" type="button">Upgrade to Pro</button>
+        </section>
+      </section>
+
+      <!-- Central Dashboards section for visibility -->
+      <section id="dashboards-section" class="section-wrapper dashboards-section">
+        <section class="section-heading">
+          <div><p class="eyebrow">Dashboards</p><h2>All dashboards</h2></div>
+        </section>
+        <section class="dashboards-grid">
+          <article class="panel">
+            <h2>Quick access</h2>
+            <div class="dashboard-cards">
+              <button class="nav-card" data-target="#donut-chart">Spending distribution</button>
+              <button class="nav-card" data-target="#yearly-trend">Monthly trend</button>
+              <button class="nav-card" data-target="#pl-chart">Profit & Loss</button>
+              <button class="nav-card" data-target="#review-chart">Executive review</button>
+            </div>
+          </article>
+          <article class="panel">
+            <h2>Portfolio performance</h2>
+            <div id="portfolio-chart" style="min-height:180px"></div>
+          </article>
         </section>
       </section>
 

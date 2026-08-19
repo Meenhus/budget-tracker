@@ -409,6 +409,69 @@ function render() {
   renderFinanceOverview();
   renderInvoices();
   renderPayments();
+  renderPLChart();
+  renderPortfolioChart();
+}
+
+function getYearlyRevenueData() {
+  const year = new Date().getFullYear();
+  const buckets = Array.from({ length: 12 }, (_, monthIndex) => ({ month: monthIndex, label: new Date(year, monthIndex, 1).toLocaleString(undefined, { month: 'short' }), value: 0 }));
+  state.payments.forEach(p => {
+    const d = new Date(p.date);
+    if (d.getFullYear() === year) buckets[d.getMonth()].value += Number(p.amount || 0);
+  });
+  return buckets;
+}
+
+function renderPLChart() {
+  const host = $("#pl-chart");
+  if (!host) return;
+  host.replaceChildren();
+  const revenueData = getYearlyRevenueData();
+  const expenseData = getYearlyMonthlyData();
+  const max = Math.max(...revenueData.map(d=>d.value), ...expenseData.map(d=>d.value), 1);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'yearly-trend';
+  wrapper.style.minHeight = '160px';
+  wrapper.replaceChildren(...revenueData.map((entry, idx) => {
+    const col = document.createElement('div'); col.className = 'yearly-month';
+    const revBar = document.createElement('div'); revBar.className = 'yearly-bar'; revBar.style.height = `${Math.max((entry.value / max) * 100, 6)}%`; revBar.title = `${entry.label} revenue ${formatCurrency(entry.value,state.currency)}`;
+    revBar.style.background = 'linear-gradient(180deg,#2ecc71,#16a085)';
+    const exp = expenseData[idx] || { value:0 };
+    const expBar = document.createElement('div'); expBar.className = 'yearly-bar'; expBar.style.height = `${Math.max((exp.value / max) * 100, 6)}%`; expBar.title = `${entry.label} expenses ${formatCurrency(exp.value,state.currency)}`;
+    expBar.style.background = 'linear-gradient(180deg,#f1c40f,#d4a017)';
+    // stack revenue above expenses slightly separated
+    const container = document.createElement('div'); container.style.display='flex'; container.style.flexDirection='column-reverse'; container.style.alignItems='center'; container.style.height='100%'; container.style.gap='6px'; container.style.justifyContent='flex-end';
+    const revWrap = document.createElement('div'); revWrap.style.width='60%'; revWrap.appendChild(revBar);
+    const expWrap = document.createElement('div'); expWrap.style.width='60%'; expWrap.appendChild(expBar);
+    container.appendChild(revWrap); container.appendChild(expWrap);
+    const label = document.createElement('span'); label.textContent = entry.label;
+    col.appendChild(container); col.appendChild(label);
+    return col;
+  }));
+  host.appendChild(wrapper);
+}
+
+function renderPortfolioChart() {
+  const host = $("#portfolio-chart");
+  if (!host) return;
+  host.replaceChildren();
+  // If portfolio has time-series entries, draw a simple sparkline via SVG
+  const pts = (state.portfolio || []).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if (!pts.length) {
+    const empty = document.createElement('div'); empty.textContent = 'No portfolio data yet.'; empty.style.color = 'var(--muted)'; host.appendChild(empty); return;
+  }
+  const values = pts.map(p=>Number(p.value||0));
+  const width = 600, height = 160, padding=8;
+  const min = Math.min(...values), max = Math.max(...values);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('viewBox',`0 0 ${width} ${height}`); svg.setAttribute('width','100%'); svg.style.display='block';
+  const path = values.map((v,i)=>{
+    const x = padding + (i/(values.length-1 || 1))*(width-padding*2);
+    const y = height - padding - ((v - min) / ( (max-min)||1))*(height-padding*2);
+    return `${i===0?'M':'L'} ${x} ${y}`;
+  }).join(' ');
+  const g = document.createElementNS('http://www.w3.org/2000/svg','path'); g.setAttribute('d', path); g.setAttribute('fill','none'); g.setAttribute('stroke','#2d6a4f'); g.setAttribute('stroke-width','2'); svg.appendChild(g);
+  host.appendChild(svg);
 }
 
 /* Finance: invoices/payments and P&L */
@@ -754,6 +817,12 @@ startCloud();
 document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'export-pdf') { e.preventDefault(); exportReviewPdf(); }
   if (e.target && e.target.id === 'present-mode') { e.preventDefault(); openPresentationView(); }
+  if (e.target && e.target.classList && e.target.classList.contains('nav-card')) {
+    const sel = e.target.getAttribute('data-target');
+    if (!sel) return;
+    const el = document.querySelector(sel);
+    if (el) el.scrollIntoView({behavior:'smooth'});
+  }
   if (e.target && e.target.classList && e.target.classList.contains('nav-button')) {
     const t = e.target.getAttribute('data-target');
     if (!t) return;
