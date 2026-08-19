@@ -247,6 +247,16 @@
             <button id="calc-reverse" class="review-cta">Estimate budgets</button>
             <button id="portfolio-view" class="text-button">Open portfolio performance</button>
           </div>
+          <div class="panel" style="margin-top:12px">
+            <h3>Portfolio entries</h3>
+            <form id="portfolio-form" class="mini-form">
+              <input id="portfolio-name" placeholder="Asset name" />
+              <input id="portfolio-date" type="date" value="" />
+              <input id="portfolio-value" type="number" step="0.01" placeholder="Value" />
+              <button class="primary-button" type="submit">Add entry</button>
+            </form>
+            <div id="portfolio-list" style="margin-top:10px;max-height:180px;overflow:auto"></div>
+          </div>
         </section>
       </section>
     </main>

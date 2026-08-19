@@ -393,25 +393,7 @@ function renderDailyOverview() {
   }));
 }
 function escapeHtml(value) { const node = document.createElement("div"); node.textContent = value; return node.innerHTML; }
-function render() {
-  const spent = totals();
-  $("#currency-select").value = state.currency;
-  const amountPrefix = document.querySelector(".currency-input span");
-  if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$";
-  updateSummary(spent);
-  renderCards(spent);
-  renderDonut(spent);
-  renderBars(spent);
-  renderYearlyOverview();
-  renderDailyOverview();
-  renderTransactions();
-  renderReviewChart();
-  renderFinanceOverview();
-  renderInvoices();
-  renderPayments();
-  renderPLChart();
-  renderPortfolioChart();
-}
+
 
 function getYearlyRevenueData() {
   const year = new Date().getFullYear();
@@ -430,48 +412,70 @@ function renderPLChart() {
   const revenueData = getYearlyRevenueData();
   const expenseData = getYearlyMonthlyData();
   const max = Math.max(...revenueData.map(d=>d.value), ...expenseData.map(d=>d.value), 1);
-  const wrapper = document.createElement('div');
-  wrapper.className = 'yearly-trend';
-  wrapper.style.minHeight = '160px';
-  wrapper.replaceChildren(...revenueData.map((entry, idx) => {
-    const col = document.createElement('div'); col.className = 'yearly-month';
-    const revBar = document.createElement('div'); revBar.className = 'yearly-bar'; revBar.style.height = `${Math.max((entry.value / max) * 100, 6)}%`; revBar.title = `${entry.label} revenue ${formatCurrency(entry.value,state.currency)}`;
-    revBar.style.background = 'linear-gradient(180deg,#2ecc71,#16a085)';
+  const wrapper = document.createElement('div'); wrapper.style.display='flex'; wrapper.style.gap='12px'; wrapper.style.alignItems='flex-end'; wrapper.style.justifyContent='space-between';
+  const cols = revenueData.map((entry, idx) => {
+    const colWrap = document.createElement('div'); colWrap.style.flex='1'; colWrap.style.display='flex'; colWrap.style.flexDirection='column'; colWrap.style.alignItems='center';
+    const rev = document.createElement('div'); rev.style.height = `${Math.max((entry.value / max) * 100, 6)}%`; rev.style.width='36%'; rev.style.background='linear-gradient(180deg,#2ecc71,#16a085)'; rev.title = `Revenue ${formatCurrency(entry.value,state.currency)}`;
     const exp = expenseData[idx] || { value:0 };
-    const expBar = document.createElement('div'); expBar.className = 'yearly-bar'; expBar.style.height = `${Math.max((exp.value / max) * 100, 6)}%`; expBar.title = `${entry.label} expenses ${formatCurrency(exp.value,state.currency)}`;
-    expBar.style.background = 'linear-gradient(180deg,#f1c40f,#d4a017)';
-    // stack revenue above expenses slightly separated
-    const container = document.createElement('div'); container.style.display='flex'; container.style.flexDirection='column-reverse'; container.style.alignItems='center'; container.style.height='100%'; container.style.gap='6px'; container.style.justifyContent='flex-end';
-    const revWrap = document.createElement('div'); revWrap.style.width='60%'; revWrap.appendChild(revBar);
-    const expWrap = document.createElement('div'); expWrap.style.width='60%'; expWrap.appendChild(expBar);
-    container.appendChild(revWrap); container.appendChild(expWrap);
-    const label = document.createElement('span'); label.textContent = entry.label;
-    col.appendChild(container); col.appendChild(label);
-    return col;
-  }));
-  host.appendChild(wrapper);
+    const ex = document.createElement('div'); ex.style.height = `${Math.max((exp.value / max) * 100, 6)}%`; ex.style.width='36%'; ex.style.background='linear-gradient(180deg,#f1c40f,#d4a017)'; ex.title = `Expense ${formatCurrency(exp.value,state.currency)}`;
+    const bars = document.createElement('div'); bars.style.display='flex'; bars.style.flexDirection='column-reverse'; bars.style.alignItems='center'; bars.style.justifyContent='flex-end'; bars.style.gap='6px'; bars.style.height='160px'; bars.style.width='100%'; bars.appendChild(rev); bars.appendChild(ex);
+    const label = document.createElement('span'); label.textContent = entry.label; label.style.fontSize='11px'; label.style.color='var(--muted)'; label.style.marginTop='6px';
+    colWrap.appendChild(bars); colWrap.appendChild(label);
+    return colWrap;
+  });
+  cols.forEach(c=>wrapper.appendChild(c));
+  // Legend
+  const legend = document.createElement('div'); legend.style.display='flex'; legend.style.gap='12px'; legend.style.marginTop='8px';
+  const rL = document.createElement('div'); rL.innerHTML = '<span style="display:inline-block;width:10px;height:10px;background:#2ecc71;margin-right:6px;border-radius:2px"></span>Revenue';
+  const eL = document.createElement('div'); eL.innerHTML = '<span style="display:inline-block;width:10px;height:10px;background:#f1c40f;margin-right:6px;border-radius:2px"></span>Expenses';
+  legend.appendChild(rL); legend.appendChild(eL);
+  host.appendChild(wrapper); host.appendChild(legend);
 }
 
 function renderPortfolioChart() {
   const host = $("#portfolio-chart");
   if (!host) return;
   host.replaceChildren();
-  // If portfolio has time-series entries, draw a simple sparkline via SVG
   const pts = (state.portfolio || []).slice().sort((a,b)=>new Date(a.date)-new Date(b.date));
-  if (!pts.length) {
-    const empty = document.createElement('div'); empty.textContent = 'No portfolio data yet.'; empty.style.color = 'var(--muted)'; host.appendChild(empty); return;
-  }
+  if (!pts.length) { const empty = document.createElement('div'); empty.textContent = 'No portfolio data yet.'; empty.style.color = 'var(--muted)'; host.appendChild(empty); return; }
   const values = pts.map(p=>Number(p.value||0));
-  const width = 600, height = 160, padding=8;
+  const initial = values[0]; const latest = values[values.length-1];
+  const change = initial ? ((latest - initial) / initial) * 100 : 0;
+  const metrics = document.createElement('div'); metrics.className = 'portfolio-metrics';
+  metrics.innerHTML = `<div><span class="eyebrow">Entries</span><strong>${pts.length}</strong></div><div><span class="eyebrow">Initial value</span><strong>${formatCurrency(initial||0,state.currency)}</strong></div><div><span class="eyebrow">Latest value</span><strong>${formatCurrency(latest||0,state.currency)}</strong></div><div><span class="eyebrow">Return</span><strong>${change.toFixed(2)}%</strong></div>`;
+  host.appendChild(metrics);
+  // sparkline
+  const width = 600, height = 120, padding = 8;
   const min = Math.min(...values), max = Math.max(...values);
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('viewBox',`0 0 ${width} ${height}`); svg.setAttribute('width','100%'); svg.style.display='block';
-  const path = values.map((v,i)=>{
-    const x = padding + (i/(values.length-1 || 1))*(width-padding*2);
-    const y = height - padding - ((v - min) / ( (max-min)||1))*(height-padding*2);
-    return `${i===0?'M':'L'} ${x} ${y}`;
-  }).join(' ');
-  const g = document.createElementNS('http://www.w3.org/2000/svg','path'); g.setAttribute('d', path); g.setAttribute('fill','none'); g.setAttribute('stroke','#2d6a4f'); g.setAttribute('stroke-width','2'); svg.appendChild(g);
+  const path = values.map((v,i)=>{ const x = padding + (i/(values.length-1 || 1))*(width-padding*2); const y = height - padding - ((v - min) / ( (max-min)||1))*(height-padding*2); return `${i===0?'M':'L'} ${x} ${y}`; }).join(' ');
+  const g = document.createElementNS('http://www.w3.org/2000/svg','path'); g.setAttribute('d', path); g.setAttribute('fill','none'); g.setAttribute('stroke', change >=0 ? '#2ecc71' : '#e74c3c'); g.setAttribute('stroke-width','2'); svg.appendChild(g);
   host.appendChild(svg);
+  // list entries
+  const list = document.createElement('div'); pts.slice().reverse().forEach(p => { const el = document.createElement('div'); el.className='portfolio-entry'; el.innerHTML = `<div>${escapeHtml(p.name||p.asset||'Asset')}</div><div>${p.date}</div><div><strong>${formatCurrency(p.value||0,state.currency)}</strong></div>`; list.appendChild(el); });
+  host.appendChild(list);
+}
+
+// ensure portfolio list renders too
+function render() {
+  const spent = totals();
+  $("#currency-select").value = state.currency;
+  const amountPrefix = document.querySelector(".currency-input span");
+  if (amountPrefix) amountPrefix.textContent = CURRENCY_SYMBOLS[state.currency] || "$";
+  updateSummary(spent);
+  renderCards(spent);
+  renderDonut(spent);
+  renderBars(spent);
+  renderYearlyOverview();
+  renderDailyOverview();
+  renderTransactions();
+  renderReviewChart();
+  renderFinanceOverview();
+  renderInvoices();
+  renderPayments();
+  renderPLChart();
+  renderPortfolioChart();
+  renderPortfolioList();
 }
 
 /* Finance: invoices/payments and P&L */
@@ -544,14 +548,26 @@ function objArrayToCsv(rows) {
 }
 
 function csvToObjects(text) {
-  const lines = text.trim().split(/\r?\n/).filter(Boolean);
-  if (!lines.length) return [];
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  // Robust CSV parsing supporting quoted fields and commas inside quotes
   const rows = [];
+  const re = /\s*(?:"([^"]*(?:""[^"]*)*)"|([^,]*))\s*(?:,|$)/g;
+  const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim() !== '');
+  if (!lines.length) return [];
+  const headers = [];
+  // parse header
+  let m; re.lastIndex = 0; while ((m = re.exec(lines[0]))) { const val = m[1] !== undefined ? m[1].replace(/""/g,'"') : (m[2]||''); headers.push(val); if (m[0].endsWith(',')) continue; else break; }
   for (let i = 1; i < lines.length; i++) {
-    const parts = lines[i].split(',').map(p => p.replace(/^"|"$/g, '').trim());
+    const line = lines[i];
     const obj = {};
-    headers.forEach((h, idx) => { obj[h] = parts[idx] ?? ''; });
+    let idx = 0; re.lastIndex = 0;
+    while ((m = re.exec(line))) {
+      const val = m[1] !== undefined ? m[1].replace(/""/g,'"') : (m[2]||'');
+      const key = headers[idx++] || `col${idx}`;
+      obj[key] = val;
+      if (!m[0] || m[0].endsWith(',')) continue; else break;
+    }
+    // fill missing headers
+    headers.forEach((h) => { if (!(h in obj)) obj[h] = ''; });
     rows.push(obj);
   }
   return rows;
@@ -561,6 +577,7 @@ function exportInvoicesCsv() {
   const rows = state.invoices.map(i => ({ id: i.id, client: i.client, amount: i.amount, date: i.date, status: i.status || 'issued', paidOn: i.paidOn || '', paidAmount: i.paidAmount || '' }));
   const csv = objArrayToCsv(rows);
   downloadCsv('invoices.csv', csv);
+  showToast('Invoices exported', 'success');
 }
 
 function importInvoicesCsvFile(file) {
@@ -573,6 +590,7 @@ function importInvoicesCsvFile(file) {
         state.invoices.push({ id, client: r.client || '', amount: Number(r.amount||0), date: r.date || dateInput(), status: r.status || 'issued', paidOn: r.paidOn || null, paidAmount: r.paidAmount || null });
       });
       save(); render();
+      showToast('Invoices imported', 'success');
     } catch (err) { alert('Failed to import invoices.'); }
   };
   reader.readAsText(file);
@@ -582,6 +600,7 @@ function exportPaymentsCsv() {
   const rows = state.payments.map(p => ({ id: p.id, client: p.client, amount: p.amount, date: p.date, invoiceId: p.invoiceId || '' }));
   const csv = objArrayToCsv(rows);
   downloadCsv('payments.csv', csv);
+  showToast('Payments exported', 'success');
 }
 
 function importPaymentsCsvFile(file) {
@@ -596,9 +615,19 @@ function importPaymentsCsvFile(file) {
         state.payments.push(p);
       });
       reconcilePayments(); save(); render();
+      showToast('Payments imported', 'success');
     } catch (err) { alert('Failed to import payments.'); }
   };
   reader.readAsText(file);
+}
+
+// Toasts
+function showToast(message, type='info', ms=3500) {
+  let container = document.getElementById('toast-container');
+  if (!container) { container = document.createElement('div'); container.id = 'toast-container'; document.body.appendChild(container); }
+  const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = message;
+  container.appendChild(t);
+  setTimeout(()=>{ t.style.opacity = '0'; setTimeout(()=> t.remove(), 300); }, ms);
 }
 
 // wire import/export buttons
@@ -978,3 +1007,12 @@ if (calcBtn) calcBtn.addEventListener('click', ()=>{
 // Portfolio view placeholder
 const portBtn = document.getElementById('portfolio-view');
 if (portBtn) portBtn.addEventListener('click', ()=>{ alert('Portfolio performance view coming soon.'); });
+
+// Portfolio form
+const portfolioForm = document.getElementById('portfolio-form');
+if (portfolioForm) portfolioForm.addEventListener('submit', (ev)=>{ ev.preventDefault(); const name = (document.getElementById('portfolio-name').value||'').trim(); const date = document.getElementById('portfolio-date').value || dateInput(); const value = Number(document.getElementById('portfolio-value').value); if(!name||!Number.isFinite(value)) return alert('Enter portfolio name and value'); state.portfolio.push({ id: Date.now(), name, date, value }); save(); render(); portfolioForm.reset(); showToast('Portfolio entry added','success'); });
+
+function renderPortfolioList() {
+  const host = document.getElementById('portfolio-list');
+  if (!host) return; host.replaceChildren(); (state.portfolio||[]).slice().reverse().forEach(p=>{ const el=document.createElement('div'); el.className='portfolio-entry'; el.innerHTML = `<div>${escapeHtml(p.name)}</div><div>${p.date}</div><div><strong>${formatCurrency(p.value,state.currency)}</strong></div>`; host.appendChild(el); });
+}

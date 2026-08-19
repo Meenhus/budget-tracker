@@ -1,3 +1,12 @@
+#toast-container { position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:10000; }
+.toast { padding:10px 12px; border-radius:8px; background:#fff; border:1px solid var(--line); box-shadow:0 8px 22px rgba(0,0,0,0.08); color:var(--ink); font-size:13px; }
+.toast.success { border-left:4px solid #2ecc71; }
+.toast.error { border-left:4px solid #e74c3c; }
+.toast.info { border-left:4px solid #3498db; }
+
+.portfolio-entry { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px; border-bottom:1px dashed var(--line); }
+.portfolio-entry strong { font-family:DM Mono, monospace; }
+.portfolio-metrics { display:flex; gap:12px; margin-top:10px; }
 :root { --paper:#f6f3eb; --card:#fffdfa; --ink:#13352B; --muted:#1F5747; --line:#dfe9e3; --green:#13352B; --green-soft:#1F5747; --gold:#339176; --gold-light:#42BB98; --red:#008B77; --red-bg:#EAF9F5; }
 * { box-sizing:border-box; }
 body { margin:0; color:var(--ink); background:var(--paper); font-family:Roboto,Arial,sans-serif; }
