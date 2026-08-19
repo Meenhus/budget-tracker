@@ -212,6 +212,9 @@
             <h2>Received Payments</h2>
             <form id="payment-form" class="mini-form">
               <input id="payment-client" name="client" placeholder="Client name" required />
+              <select id="payment-invoice" name="invoiceId">
+                <option value="">Apply to invoice (optional)</option>
+              </select>
               <input id="payment-amount" name="amount" type="number" step="0.01" placeholder="Amount" required />
               <input id="payment-date" name="date" type="date" required />
               <button class="primary-button" type="submit">Record payment</button>

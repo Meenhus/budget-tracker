@@ -481,7 +481,17 @@ function addInvoice(invoice) {
 }
 
 function addPayment(payment) {
-  state.payments.push({ id: Date.now(), ...payment });
+  const p = { id: Date.now(), ...payment };
+  // normalize invoiceId
+  if (p.invoiceId === "" || p.invoiceId === null) delete p.invoiceId;
+  state.payments.push(p);
+  // if payment references an invoice, mark invoice paid
+  if (p.invoiceId) {
+    const inv = state.invoices.find(i => String(i.id) === String(p.invoiceId));
+    if (inv) { inv.status = 'paid'; inv.paidOn = p.date; inv.paidAmount = p.amount; }
+  }
+  // attempt auto-reconciliation for payments without explicit invoiceId
+  reconcilePayments();
   save(); render();
 }
 
@@ -490,9 +500,11 @@ function renderInvoices() {
   if (!host) return;
   host.replaceChildren(...state.invoices.slice().reverse().map(inv => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${escapeHtml(inv.client)}</td><td>${inv.date}</td><td class="amount-cell">${formatCurrency(inv.amount,state.currency)}</td><td>${escapeHtml(inv.status)}</td>`;
+    const paidOn = inv.paidOn ? inv.paidOn : '';
+    row.innerHTML = `<td>${escapeHtml(inv.client)}</td><td>${inv.date}</td><td class="amount-cell">${formatCurrency(inv.amount,state.currency)}</td><td>${escapeHtml(inv.status || 'issued')}</td><td>${paidOn}</td>`;
     return row;
   }));
+  populatePaymentInvoiceOptions();
 }
 
 function renderPayments() {
@@ -500,9 +512,33 @@ function renderPayments() {
   if (!host) return;
   host.replaceChildren(...state.payments.slice().reverse().map(p => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${p.date}</td><td>${escapeHtml(p.client)}</td><td class="amount-cell">${formatCurrency(p.amount,state.currency)}</td>`;
+    const invoiceRef = p.invoiceId ? `<a href="#" data-invoice-id="${p.invoiceId}" class="invoice-link">${p.invoiceId}</a>` : '';
+    row.innerHTML = `<td>${p.date}</td><td>${escapeHtml(p.client)}</td><td class="amount-cell">${formatCurrency(p.amount,state.currency)}</td><td class="amount-cell">${invoiceRef}</td>`;
     return row;
   }));
+}
+
+function populatePaymentInvoiceOptions() {
+  const sel = $("#payment-invoice");
+  if (!sel) return;
+  // keep a default option
+  const defaultOpt = '<option value="">Apply to invoice (optional)</option>';
+  const unpaid = state.invoices.filter(i => (i.status || 'issued') !== 'paid');
+  sel.innerHTML = defaultOpt + unpaid.map(i => `<option value="${i.id}">${escapeHtml(i.client)} — ${i.date} — ${formatCurrency(i.amount,state.currency)}</option>`).join('');
+}
+
+function reconcilePayments() {
+  // For payments without invoiceId, try to match by client + amount to an unpaid invoice
+  state.payments.forEach(p => {
+    if (p.invoiceId) return;
+    const candidate = state.invoices.find(i => (i.status || 'issued') !== 'paid' && i.client === p.client && Number(i.amount) === Number(p.amount));
+    if (candidate) {
+      candidate.status = 'paid';
+      candidate.paidOn = p.date;
+      candidate.paidAmount = p.amount;
+      p.invoiceId = candidate.id;
+    }
+  });
 }
 
 function getMonthlyRevenue() {
